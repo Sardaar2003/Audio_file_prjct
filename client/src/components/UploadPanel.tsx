@@ -66,6 +66,7 @@ const UploadPanel = () => {
   const [uploadProgress, setUploadProgress] = useState({ loaded: 0, total: 0 });
   const [audioFiles, setAudioFiles] = useState<File[]>([]);
   const [textFiles, setTextFiles] = useState<File[]>([]);
+  const [uploadCount, setUploadCount] = useState(0);
 
   useEffect(() => {
     const setDirAttrs = (el: HTMLInputElement | null) => {
@@ -110,6 +111,7 @@ const UploadPanel = () => {
     if (!combined.length) return;
 
     const totalSize = combined.reduce((sum, file) => sum + file.size, 0);
+    setUploadCount(combined.length);
     const formData = new FormData();
     combined.forEach((file) => formData.append('files', file));
 
@@ -188,7 +190,7 @@ const UploadPanel = () => {
           {textFiles.length ? `Selected ${textFiles.length} txt` : 'Select .txt folder'}
         </label>
         <button className="btn" onClick={handleUpload} disabled={uploading || (!audioFiles.length && !textFiles.length)}>
-          {uploading ? `Uploading ${audioFiles.length + textFiles.length} files...` : 'Upload selected'}
+          {uploading ? `Uploading ${uploadCount} file${uploadCount !== 1 ? 's' : ''}...` : 'Upload selected'}
         </button>
         {!uploading && (audioFiles.length || textFiles.length) ? (
           <span style={{ color: 'var(--muted)' }}>
@@ -202,7 +204,7 @@ const UploadPanel = () => {
         <div className="card" style={{ background: 'rgba(2,6,23,0.6)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
-              Uploading {fileCount} file{fileCount !== 1 ? 's' : ''}...
+              Uploading {uploadCount} file{uploadCount !== 1 ? 's' : ''}...
             </span>
             <span style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
               {Math.round((uploadProgress.loaded / uploadProgress.total) * 100)}%

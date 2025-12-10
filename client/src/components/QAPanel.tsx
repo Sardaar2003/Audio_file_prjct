@@ -1,8 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { addComment, fetchRecords, fetchTextContent, getFilePresignedUrl, saveReviewText } from '../api';
 import type { PaginatedResponse } from '../api';
 import { RecordComment, FilePair } from '../types';
+
+type TextPayload = {
+  success: boolean;
+  textContent: string;
+  reviewContent: string;
+  originalPath: string;
+  editorPath: string;
+};
 
 const QAPanel = () => {
   const queryClient = useQueryClient();
@@ -27,7 +35,7 @@ const QAPanel = () => {
     [recordsQuery.data, selectedId]
   );
 
-  const textQuery = useQuery({
+  const textQuery = useQuery<TextPayload | null>({
     queryKey: ['qaText', selectedRecord?._id],
     queryFn: async () => {
       if (!selectedRecord) return null;
@@ -35,8 +43,13 @@ const QAPanel = () => {
       return response.data;
     },
     enabled: !!selectedRecord,
-    onSuccess: (data) => setEditorText(data?.reviewContent || ''),
   });
+
+  useEffect(() => {
+    if (textQuery.data) {
+      setEditorText(textQuery.data.reviewContent || '');
+    }
+  }, [textQuery.data]);
 
   const audioUrlQuery = useQuery({
     queryKey: ['qaAudio', selectedRecord?._id],
