@@ -1,11 +1,17 @@
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { deleteUser, fetchAdminStats, fetchUsers, updateUserRole } from '../api';
-import { AdminStats as AdminStatsType, User } from '../types';
+import type { PaginatedResponse } from '../api';
+import { deleteUser, fetchAdminStats, fetchUsers, updateUserRole, fetchAdminFilePairs, deleteFilePairAdmin } from '../api';
+import { AdminStats as AdminStatsType, FilePair, User } from '../types';
 
 const ROLE_OPTIONS = ['User', 'QA1', 'QA2', 'Monitor', 'Admin'];
 
 const AdminPanel = () => {
   const queryClient = useQueryClient();
+  const [fileStatus, setFileStatus] = useState('');
+  const [soldStatus, setSoldStatus] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const statsQuery = useQuery({
     queryKey: ['adminStats'],
     queryFn: async () => {
@@ -33,6 +39,26 @@ const AdminPanel = () => {
   });
 
   const analytics = statsQuery.data?.analytics;
+
+  useEffect(() => {
+    setPage(1);
+  }, [fileStatus, soldStatus, search]);
+
+  const filesQuery = useQuery<PaginatedResponse<FilePair>>({
+    queryKey: ['adminFilePairs', fileStatus, soldStatus, search, page],
+    queryFn: async () => {
+      const response = await fetchAdminFilePairs({ status: fileStatus, soldStatus, search, page });
+      return response.data;
+    },
+  });
+
+  const deleteFileMutation = useMutation({
+    mutationFn: (filePairId: string) => deleteFilePairAdmin(filePairId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminFilePairs'] });
+      queryClient.invalidateQueries({ queryKey: ['adminStats'] });
+    },
+  });
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -62,36 +88,83 @@ const AdminPanel = () => {
       )}
 
       <div className="card" style={{ background: 'rgba(2,6,23,0.35)' }}>
-        <h3>Folder upload metadata</h3>
+        <h3>All file pairs</h3>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <input className="input" placeholder="Search filename" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <select className="select" value={fileStatus} onChange={(e) => setFileStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            <option value="Processing">Processing</option>
+            <option value="Completed">Completed</option>
+          </select>
+          <select className="select" value={soldStatus} onChange={(e) => setSoldStatus(e.target.value)}>
+            <option value="">Sold + Unsold</option>
+            <option value="Sold">Sold</option>
+            <option value="Unsold">Unsold</option>
+          </select>
+        </div>
         <div style={{ overflowX: 'auto' }}>
           <table className="table">
             <thead>
               <tr>
                 <th>Filename</th>
                 <th>Uploader</th>
+                <th>Sold?</th>
                 <th>Status</th>
                 <th>Uploaded</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {statsQuery.data?.uploads.map((upload) => (
-                <tr key={upload._id}>
-                  <td>{upload.baseName}</td>
-                  <td>{upload.uploaderName}</td>
-                  <td>{upload.status}</td>
-                  <td>{new Date(upload.uploadedAt).toLocaleString()}</td>
+              {filesQuery.data?.data.map((file: FilePair) => (
+                <tr key={file._id}>
+                  <td>{file.baseName}</td>
+                  <td>{file.uploaderName}</td>
+                  <td>{file.soldStatus}</td>
+                  <td>{file.status}</td>
+                  <td>{new Date(file.uploadedAt).toLocaleString()}</td>
+                  <td>
+                    <button
+                      className="btn secondary"
+                      onClick={() => {
+                        const confirmDelete = window.confirm(`Delete ${file.baseName}? This will remove files and related reviews.`);
+                        if (confirmDelete) {
+                          deleteFileMutation.mutate(file._id);
+                        }
+                      }}
+                      disabled={deleteFileMutation.isPending}
+                    >
+                      {deleteFileMutation.isPending ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {statsQuery.data?.uploads.length === 0 && (
+              {filesQuery.data?.data.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)' }}>
-                    No uploads recorded yet.
+                  <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)' }}>
+                    {filesQuery.isFetching ? 'Loading...' : 'No files found'}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        {filesQuery.data?.pagination && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
+            <button className="btn secondary" disabled={page <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
+              Previous
+            </button>
+            <span>
+              Page {filesQuery.data.pagination.page} / {filesQuery.data.pagination.pages}
+            </span>
+            <button
+              className="btn secondary"
+              disabled={filesQuery.data.pagination.page >= filesQuery.data.pagination.pages}
+              onClick={() => setPage((prev) => prev + 1)}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="card" style={{ background: 'rgba(2,6,23,0.35)' }}>

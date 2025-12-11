@@ -9,13 +9,14 @@ const ManagerPanel = () => {
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [soldStatus, setSoldStatus] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [comment, setComment] = useState('');
 
   const recordsQuery = useQuery<PaginatedResponse<FilePair>>({
-    queryKey: ['monitorRecords', status, search, page],
+    queryKey: ['monitorRecords', status, search, soldStatus, page],
     queryFn: async () => {
-      const response = await fetchRecords({ status, search, soldStatus: 'Sold', page });
+      const response = await fetchRecords({ status, search, soldStatus, page });
       return response.data;
     },
   });
@@ -79,7 +80,7 @@ const ManagerPanel = () => {
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <div>
         <h2 style={{ margin: 0 }}>Monitor</h2>
-        <p style={{ color: 'var(--muted)' }}>Sold records only. Listen to audio, review transcripts, and capture comments.</p>
+        <p style={{ color: 'var(--muted)' }}>Listen to audio, review transcripts, and capture comments across all records.</p>
       </div>
 
       <div className="card" style={{ background: 'rgba(2,6,23,0.35)' }}>
@@ -89,6 +90,11 @@ const ManagerPanel = () => {
             <option value="">All statuses</option>
             <option value="Processing">Processing</option>
             <option value="Completed">Completed</option>
+          </select>
+          <select className="select" value={soldStatus} onChange={(e) => setSoldStatus(e.target.value)}>
+            <option value="">Sold + Unsold</option>
+            <option value="Sold">Sold</option>
+            <option value="Unsold">Unsold</option>
           </select>
         </div>
         <div style={{ overflowX: 'auto' }}>
@@ -123,7 +129,7 @@ const ManagerPanel = () => {
               {files.length === 0 && (
                 <tr>
                   <td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)' }}>
-                    {recordsQuery.isFetching ? 'Loading...' : 'No sold records found'}
+                    {recordsQuery.isFetching ? 'Loading...' : 'No records found'}
                   </td>
                 </tr>
               )}

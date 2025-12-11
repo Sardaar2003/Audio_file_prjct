@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchMyUploads, uploadFolder, getFilePresignedUrl, updateSoldStatus } from '../api';
+import { fetchMyUploads, uploadFolder, updateSoldStatus } from '../api';
 import type { PaginatedResponse } from '../api';
 import { FilePair, UploadSummary } from '../types';
 
@@ -24,31 +24,6 @@ const calculateUploadSpeed = (loaded: number, total: number, startTime: number):
   if (eta < 1) return 'Finishing...';
   if (eta < 60) return `~${Math.round(eta)}s remaining`;
   return `~${Math.round(eta / 60)}m remaining`;
-};
-
-// Helper component for downloading files using presigned URLs
-const FileDownloadButton = ({ filePairId, type, label }: { filePairId: string; type: 'audio' | 'text' | 'review'; label: string }) => {
-  const [downloading, setDownloading] = useState(false);
-
-  const handleDownload = async () => {
-    try {
-      setDownloading(true);
-      const response = await getFilePresignedUrl(filePairId, type);
-      // Open presigned URL in new tab to trigger download
-      window.open(response.data.url, '_blank');
-    } catch (error) {
-      console.error('Failed to get download URL:', error);
-      alert('Failed to generate download link. Please try again.');
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  return (
-    <button className="btn secondary" onClick={handleDownload} disabled={downloading}>
-      {downloading ? 'Loading...' : label}
-    </button>
-  );
 };
 
 const UploadPanel = () => {
@@ -283,7 +258,6 @@ const UploadPanel = () => {
                 <th>.txt file</th>
                 <th>Sold?</th>
                 <th>Status</th>
-                <th>Download</th>
               </tr>
             </thead>
             <tbody>
@@ -321,17 +295,11 @@ const UploadPanel = () => {
                   <td>
                     <span className={`badge ${file.status === 'Completed' ? 'completed' : 'processing'}`}>{file.status}</span>
                   </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <FileDownloadButton filePairId={file._id} type="audio" label=".mp3" />
-                      <FileDownloadButton filePairId={file._id} type="text" label=".txt" />
-                    </div>
-                  </td>
                 </tr>
               ))}
               {tableRows.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)' }}>
+                  <td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)' }}>
                     {uploadsQuery.isFetching ? 'Loading...' : 'No uploads yet'}
                   </td>
                 </tr>

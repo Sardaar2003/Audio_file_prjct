@@ -165,11 +165,6 @@ const listRecords = asyncHandler(async (req, res) => {
   if (search) filters.baseName = { $regex: search, $options: 'i' };
   if (soldStatus) filters.soldStatus = soldStatus;
 
-  // Monitors are limited to sold inventory
-  if (req.user.role === ROLES.MONITOR) {
-    filters.soldStatus = 'Sold';
-  }
-
   const skip = (Number(page) - 1) * Number(limit);
   const [items, total] = await Promise.all([
     FilePair.find(filters).sort({ uploadedAt: -1 }).skip(skip).limit(Number(limit)),

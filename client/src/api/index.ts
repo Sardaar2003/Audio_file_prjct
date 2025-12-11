@@ -88,6 +88,11 @@ export const updateUserRole = (userId: string, role: string) =>
 
 export const deleteUser = (userId: string) => http.delete<{ success: boolean }>(`/api/admin/users/${userId}`);
 
+export const fetchAdminFilePairs = (params: { page?: number; status?: string; search?: string; soldStatus?: string }) =>
+  http.get<PaginatedResponse<FilePair>>('/api/admin/file-pairs', { params });
+
+export const deleteFilePairAdmin = (filePairId: string) => http.delete<{ success: boolean }>(`/api/admin/file-pairs/${filePairId}`);
+
 /**
  * Get presigned URL for a file (audio, text, or review)
  * @param filePairId - The FilePair MongoDB ID

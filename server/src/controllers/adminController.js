@@ -3,6 +3,7 @@ const User = require('../models/User');
 const FilePair = require('../models/FilePair');
 const Assignment = require('../models/Assignment');
 const Review = require('../models/Review');
+const { deleteFromS3 } = require('../services/s3Service');
 const { ROLES } = require('../constants/roles');
 
 const getStats = asyncHandler(async (_req, res) => {
@@ -78,6 +79,54 @@ const deleteUser = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
-module.exports = { getStats, listUsers, updateUserRole, deleteUser };
+const listFilePairs = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, status = '', search = '', soldStatus = '' } = req.query;
+  const filters = {};
+
+  if (status) filters.status = status;
+  if (soldStatus) filters.soldStatus = soldStatus;
+  if (search) filters.baseName = { $regex: search, $options: 'i' };
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const [items, total] = await Promise.all([
+    FilePair.find(filters).sort({ uploadedAt: -1 }).skip(skip).limit(Number(limit)),
+    FilePair.countDocuments(filters),
+  ]);
+
+  res.json({
+    success: true,
+    data: items,
+    pagination: {
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / Number(limit)) || 1,
+    },
+  });
+});
+
+const deleteFilePair = asyncHandler(async (req, res) => {
+  const { filePairId } = req.params;
+  const filePair = await FilePair.findById(filePairId);
+
+  if (!filePair) {
+    res.status(404);
+    throw new Error('File pair not found');
+  }
+
+  // Remove linked assets in background best-effort
+  await Promise.all([
+    deleteFromS3(filePair.audioS3Key),
+    deleteFromS3(filePair.textS3Key),
+    deleteFromS3(filePair.reviewTextS3Key),
+  ]);
+
+  // Clean up relational data to avoid orphans
+  await Promise.all([Assignment.deleteMany({ filePair: filePair._id }), Review.deleteMany({ filePair: filePair._id })]);
+
+  await filePair.deleteOne();
+  res.json({ success: true });
+});
+
+module.exports = { getStats, listUsers, updateUserRole, deleteUser, listFilePairs, deleteFilePair };
 
 
