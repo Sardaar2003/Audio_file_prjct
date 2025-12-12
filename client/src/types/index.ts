@@ -29,6 +29,7 @@ export interface FilePair {
 }
 
 export interface RecordComment {
+  _id?: string;
   author?: string;
   authorName?: string;
   role?: Role | string;

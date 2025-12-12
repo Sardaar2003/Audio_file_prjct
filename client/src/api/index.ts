@@ -41,11 +41,17 @@ export const fetchMyUploads = (params: { page?: number; status?: string; search?
 export const fetchRecords = (params: { page?: number; status?: string; search?: string; soldStatus?: string }) =>
   http.get<PaginatedResponse<FilePair>>('/api/uploads/records', { params });
 
+export const fetchFilePairDetails = (filePairId: string) =>
+  http.get<{ success: boolean; data: FilePair }>(`/api/uploads/${filePairId}`);
+
 export const updateSoldStatus = (filePairId: string, soldStatus: 'Sold' | 'Unsold') =>
   http.put<{ success: boolean; data: FilePair }>(`/api/uploads/${filePairId}/sold`, { soldStatus });
 
 export const addComment = (filePairId: string, message: string) =>
   http.post<{ success: boolean; comments: RecordComment[] }>(`/api/uploads/${filePairId}/comments`, { message });
+
+export const deleteComment = (filePairId: string, commentId: string) =>
+  http.delete<{ success: boolean; comments: RecordComment[] }>(`/api/uploads/${filePairId}/comments/${commentId}`);
 
 export const fetchTextContent = (filePairId: string) =>
   http.get<{

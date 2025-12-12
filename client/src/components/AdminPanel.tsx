@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '../api';
-import { deleteUser, fetchAdminStats, fetchUsers, updateUserRole, fetchAdminFilePairs, deleteFilePairAdmin } from '../api';
-import { AdminStats as AdminStatsType, FilePair, User } from '../types';
+import { deleteUser, fetchAdminStats, fetchUsers, updateUserRole, fetchAdminFilePairs, deleteFilePairAdmin, fetchFilePairDetails, fetchTextContent, getFilePresignedUrl, addComment, deleteComment } from '../api';
+import { AdminStats as AdminStatsType, FilePair, User, RecordComment } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const ROLE_OPTIONS = ['User', 'QA1', 'QA2', 'Monitor', 'Admin'];
 
 const AdminPanel = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [fileStatus, setFileStatus] = useState('');
   const [soldStatus, setSoldStatus] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+  const [comment, setComment] = useState('');
   const statsQuery = useQuery({
     queryKey: ['adminStats'],
     queryFn: async () => {
@@ -59,6 +63,95 @@ const AdminPanel = () => {
       queryClient.invalidateQueries({ queryKey: ['adminStats'] });
     },
   });
+
+  const fileDetailsQuery = useQuery({
+    queryKey: ['adminFileDetails', selectedFileId],
+    queryFn: async () => {
+      if (!selectedFileId) return null;
+      const response = await fetchFilePairDetails(selectedFileId);
+      return response.data.data;
+    },
+    enabled: !!selectedFileId,
+  });
+
+  const selectedFile = fileDetailsQuery.data;
+
+  const textQuery = useQuery({
+    queryKey: ['adminText', selectedFile?._id],
+    queryFn: async () => {
+      if (!selectedFile) return null;
+      const response = await fetchTextContent(selectedFile._id);
+      return response.data;
+    },
+    enabled: !!selectedFile,
+  });
+
+  const audioUrlQuery = useQuery({
+    queryKey: ['adminAudio', selectedFile?._id],
+    queryFn: async () => {
+      if (!selectedFile) return null;
+      const response = await getFilePresignedUrl(selectedFile._id, 'audio');
+      return response.data.url;
+    },
+    enabled: !!selectedFile,
+    staleTime: 3600000,
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: (payload: { id: string; message: string }) => addComment(payload.id, payload.message),
+    onSuccess: () => {
+      setComment('');
+      queryClient.invalidateQueries({ queryKey: ['adminFileDetails', selectedFileId] });
+      queryClient.invalidateQueries({ queryKey: ['adminFilePairs'] });
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (payload: { filePairId: string; commentId: string }) => deleteComment(payload.filePairId, payload.commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminFileDetails', selectedFileId] });
+      queryClient.invalidateQueries({ queryKey: ['adminFilePairs'] });
+    },
+  });
+
+  const renderComments = (comments?: RecordComment[]) => {
+    if (!comments?.length) return <p style={{ color: 'var(--muted)' }}>No comments yet.</p>;
+    return (
+      <div className="comment-list">
+        {comments.map((cmt, idx) => {
+          const canDelete = user && (user.id === cmt.author || user.role === 'Admin');
+          return (
+            <div key={cmt._id || `${cmt.createdAt}-${idx}`} className="comment-item">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                    <strong>{cmt.authorName || 'Anon'}</strong>
+                    <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>{new Date(cmt.createdAt).toLocaleString()}</span>
+                  </div>
+                  <small style={{ color: 'var(--muted)' }}>{cmt.role}</small>
+                  <p style={{ marginTop: '0.5rem', marginBottom: 0 }}>{cmt.message}</p>
+                </div>
+                {canDelete && cmt._id && selectedFileId && (
+                  <button
+                    className="btn secondary"
+                    style={{ marginLeft: '1rem', padding: '0.25rem 0.5rem', fontSize: '0.85rem', minWidth: 'auto' }}
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to delete this comment?') && cmt._id) {
+                        deleteCommentMutation.mutate({ filePairId: selectedFileId, commentId: cmt._id });
+                      }
+                    }}
+                    disabled={deleteCommentMutation.isPending}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -117,7 +210,11 @@ const AdminPanel = () => {
             <tbody>
               {filesQuery.data?.data.map((file: FilePair) => (
                 <tr key={file._id}>
-                  <td>{file.baseName}</td>
+                  <td>
+                    <button className="nav-link" onClick={() => setSelectedFileId(file._id)} style={{ padding: '0.25rem 0.5rem' }}>
+                      {file.baseName}
+                    </button>
+                  </td>
                   <td>{file.uploaderName}</td>
                   <td>{file.soldStatus}</td>
                   <td>{file.status}</td>
@@ -287,6 +384,67 @@ const AdminPanel = () => {
           </table>
         </div>
       </div>
+
+      {selectedFileId && selectedFile && (
+        <div className="modal-overlay" onClick={() => setSelectedFileId(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSelectedFileId(null)}>
+              ×
+            </button>
+            <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>{selectedFile.baseName}</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div>
+                <p style={{ color: 'var(--muted)', marginTop: 0, marginBottom: '0.5rem' }}>
+                  Uploader: <strong>{selectedFile.uploaderName}</strong> · Status: <strong>{selectedFile.status}</strong> · Sold: <strong>{selectedFile.soldStatus || 'Unsold'}</strong>
+                </p>
+                <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
+                  Audio available: {selectedFile.audioAvailable ? 'Yes' : 'No'} · Text available: {selectedFile.textAvailable ? 'Yes' : 'No'} · Uploaded: {new Date(selectedFile.uploadedAt).toLocaleString()}
+                </p>
+              </div>
+
+              {audioUrlQuery.isLoading ? (
+                <p style={{ color: 'var(--muted)' }}>Loading audio...</p>
+              ) : audioUrlQuery.data ? (
+                <div>
+                  <p className="panel-title">Audio</p>
+                  <audio className="audio-player" controls src={audioUrlQuery.data}>
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              ) : (
+                <p style={{ color: '#f87171' }}>Audio not available</p>
+              )}
+
+              <div>
+                <p className="panel-title">Transcript</p>
+                <div className="text-viewer" style={{ maxHeight: '300px' }}>
+                  {textQuery.isLoading ? 'Loading text...' : textQuery.data?.textContent || 'No transcript available'}
+                </div>
+              </div>
+
+              <div>
+                <p className="panel-title">Comments</p>
+                {renderComments(selectedFile.comments)}
+                <textarea
+                  className="textarea"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Add admin comment..."
+                  style={{ marginTop: '1rem' }}
+                />
+                <button
+                  className="btn"
+                  style={{ marginTop: '0.75rem' }}
+                  onClick={() => commentMutation.mutate({ id: selectedFile._id, message: comment })}
+                  disabled={commentMutation.isPending || !comment}
+                >
+                  {commentMutation.isPending ? 'Saving...' : 'Save Comment'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { addComment, fetchRecords, fetchTextContent, getFilePresignedUrl } from '../api';
+import { addComment, deleteComment, fetchRecords, fetchTextContent, getFilePresignedUrl, fetchFilePairDetails } from '../api';
 import type { PaginatedResponse } from '../api';
 import { RecordComment, FilePair } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const ManagerPanel = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -21,10 +23,17 @@ const ManagerPanel = () => {
     },
   });
 
-  const selectedRecord = useMemo(
-    () => recordsQuery.data?.data.find((item) => item._id === selectedId) ?? recordsQuery.data?.data?.[0],
-    [recordsQuery.data, selectedId]
-  );
+  const fileDetailsQuery = useQuery({
+    queryKey: ['fileDetails', selectedId],
+    queryFn: async () => {
+      if (!selectedId) return null;
+      const response = await fetchFilePairDetails(selectedId);
+      return response.data.data;
+    },
+    enabled: !!selectedId,
+  });
+
+  const selectedRecord = fileDetailsQuery.data;
 
   const textQuery = useQuery({
     queryKey: ['monitorText', selectedRecord?._id],
@@ -51,6 +60,15 @@ const ManagerPanel = () => {
     mutationFn: (payload: { id: string; message: string }) => addComment(payload.id, payload.message),
     onSuccess: () => {
       setComment('');
+      queryClient.invalidateQueries({ queryKey: ['fileDetails', selectedId] });
+      queryClient.invalidateQueries({ queryKey: ['monitorRecords'] });
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (payload: { filePairId: string; commentId: string }) => deleteComment(payload.filePairId, payload.commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fileDetails', selectedId] });
       queryClient.invalidateQueries({ queryKey: ['monitorRecords'] });
     },
   });
@@ -62,16 +80,37 @@ const ManagerPanel = () => {
     if (!comments?.length) return <p style={{ color: 'var(--muted)' }}>No comments yet.</p>;
     return (
       <div className="comment-list">
-        {comments.map((cmt, idx) => (
-          <div key={`${cmt.createdAt}-${idx}`} className="comment-item">
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <strong>{cmt.authorName || 'Anon'}</strong>
-              <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>{new Date(cmt.createdAt).toLocaleString()}</span>
+        {comments.map((cmt, idx) => {
+          const canDelete = user && (user.id === cmt.author || user.role === 'Admin');
+          return (
+            <div key={cmt._id || `${cmt.createdAt}-${idx}`} className="comment-item">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                    <strong>{cmt.authorName || 'Anon'}</strong>
+                    <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>{new Date(cmt.createdAt).toLocaleString()}</span>
+                  </div>
+                  <small style={{ color: 'var(--muted)' }}>{cmt.role}</small>
+                  <p style={{ marginTop: '0.5rem', marginBottom: 0 }}>{cmt.message}</p>
+                </div>
+                {canDelete && cmt._id && selectedId && (
+                  <button
+                    className="btn secondary"
+                    style={{ marginLeft: '1rem', padding: '0.25rem 0.5rem', fontSize: '0.85rem', minWidth: 'auto' }}
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to delete this comment?') && cmt._id) {
+                        deleteCommentMutation.mutate({ filePairId: selectedId, commentId: cmt._id });
+                      }
+                    }}
+                    disabled={deleteCommentMutation.isPending}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
             </div>
-            <small style={{ color: 'var(--muted)' }}>{cmt.role}</small>
-            <p style={{ marginTop: '0.25rem' }}>{cmt.message}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -110,7 +149,7 @@ const ManagerPanel = () => {
             </thead>
             <tbody>
               {files.map((file: FilePair) => (
-                <tr key={file._id} className={selectedRecord?._id === file._id ? 'active-row' : ''}>
+                <tr key={file._id}>
                   <td>
                     <button className="nav-link" onClick={() => setSelectedId(file._id)}>
                       {file.baseName}
@@ -155,39 +194,63 @@ const ManagerPanel = () => {
         )}
       </div>
 
-      {selectedRecord && (
-        <div className="card" style={{ background: 'rgba(2,6,23,0.6)' }}>
-          <h3 style={{ marginTop: 0 }}>{selectedRecord.baseName}</h3>
-          <p style={{ color: 'var(--muted)', marginTop: 0 }}>
-            Audio available: {selectedRecord.audioAvailable ? 'Yes' : 'No'} · Text available: {selectedRecord.textAvailable ? 'Yes' : 'No'}
-          </p>
-          {audioUrlQuery.isLoading ? (
-            <p style={{ color: 'var(--muted)' }}>Loading audio...</p>
-          ) : audioUrlQuery.data ? (
-            <audio className="audio-player" controls src={audioUrlQuery.data}>
-              Your browser does not support the audio element.
-            </audio>
-          ) : (
-            <p style={{ color: '#f87171' }}>Audio not available</p>
-          )}
-
-          <div style={{ marginTop: '1rem' }}>
-            <p className="panel-title">Transcript</p>
-            <div className="text-viewer">{textQuery.isLoading ? 'Loading text...' : textQuery.data?.textContent}</div>
-          </div>
-
-          <div style={{ marginTop: '1.5rem' }}>
-            <p className="panel-title">Comments</p>
-            {renderComments(selectedRecord.comments)}
-            <textarea className="textarea" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add monitor remarks..." />
-            <button
-              className="btn"
-              style={{ marginTop: '0.75rem', alignSelf: 'flex-start' }}
-              onClick={() => commentMutation.mutate({ id: selectedRecord._id, message: comment })}
-              disabled={commentMutation.isPending || !comment}
-            >
-              {commentMutation.isPending ? 'Saving...' : 'Save Comment'}
+      {selectedId && selectedRecord && (
+        <div className="modal-overlay" onClick={() => setSelectedId(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSelectedId(null)}>
+              ×
             </button>
+            <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>{selectedRecord.baseName}</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div>
+                <p style={{ color: 'var(--muted)', marginTop: 0, marginBottom: '0.5rem' }}>
+                  Uploader: <strong>{selectedRecord.uploaderName}</strong> · Status: <strong>{selectedRecord.status}</strong> · Sold: <strong>{selectedRecord.soldStatus || 'Unsold'}</strong>
+                </p>
+                <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
+                  Audio available: {selectedRecord.audioAvailable ? 'Yes' : 'No'} · Text available: {selectedRecord.textAvailable ? 'Yes' : 'No'} · Uploaded: {new Date(selectedRecord.uploadedAt).toLocaleString()}
+                </p>
+              </div>
+
+              {audioUrlQuery.isLoading ? (
+                <p style={{ color: 'var(--muted)' }}>Loading audio...</p>
+              ) : audioUrlQuery.data ? (
+                <div>
+                  <p className="panel-title">Audio</p>
+                  <audio className="audio-player" controls src={audioUrlQuery.data}>
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              ) : (
+                <p style={{ color: '#f87171' }}>Audio not available</p>
+              )}
+
+              <div>
+                <p className="panel-title">Transcript</p>
+                <div className="text-viewer" style={{ maxHeight: '300px' }}>
+                  {textQuery.isLoading ? 'Loading text...' : textQuery.data?.textContent || 'No transcript available'}
+                </div>
+              </div>
+
+              <div>
+                <p className="panel-title">Comments</p>
+                {renderComments(selectedRecord.comments)}
+                <textarea
+                  className="textarea"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Add monitor remarks..."
+                  style={{ marginTop: '1rem' }}
+                />
+                <button
+                  className="btn"
+                  style={{ marginTop: '0.75rem' }}
+                  onClick={() => commentMutation.mutate({ id: selectedRecord._id, message: comment })}
+                  disabled={commentMutation.isPending || !comment}
+                >
+                  {commentMutation.isPending ? 'Saving...' : 'Save Comment'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

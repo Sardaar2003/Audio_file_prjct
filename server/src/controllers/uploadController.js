@@ -244,6 +244,54 @@ const addComment = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, comments: filePair.comments });
 });
 
+const deleteComment = asyncHandler(async (req, res) => {
+  const { filePairId, commentId } = req.params;
+  const filePair = await FilePair.findById(filePairId);
+
+  if (!filePair) {
+    res.status(404);
+    throw new Error('File pair not found');
+  }
+
+  const comment = filePair.comments.id(commentId);
+  if (!comment) {
+    res.status(404);
+    throw new Error('Comment not found');
+  }
+
+  // Only the comment author or admin can delete
+  const isAuthor = comment.author.toString() === req.user.id.toString();
+  const isAdmin = req.user.role === ROLES.ADMIN;
+  if (!isAuthor && !isAdmin) {
+    res.status(403);
+    throw new Error('You are not allowed to delete this comment');
+  }
+
+  filePair.comments.pull(commentId);
+  await filePair.save();
+
+  res.json({ success: true, comments: filePair.comments });
+});
+
+const getFilePairDetails = asyncHandler(async (req, res) => {
+  const { filePairId } = req.params;
+  const filePair = await FilePair.findById(filePairId);
+
+  if (!filePair) {
+    res.status(404);
+    throw new Error('File pair not found');
+  }
+
+  // Check access permissions
+  const canAccess = req.user.role === ROLES.ADMIN || req.user.role === ROLES.MONITOR || QA_TEAMS.includes(req.user.role) || filePair.uploader.toString() === req.user.id.toString();
+  if (!canAccess) {
+    res.status(403);
+    throw new Error('You are not allowed to access this file');
+  }
+
+  res.json({ success: true, data: filePair });
+});
+
 module.exports = {
   uploadFolder,
   getMyUploads,
@@ -252,6 +300,8 @@ module.exports = {
   listRecords,
   updateSoldStatus,
   addComment,
+  deleteComment,
+  getFilePairDetails,
 };
 
 

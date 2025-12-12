@@ -10,6 +10,8 @@ const {
   listRecords,
   updateSoldStatus,
   addComment,
+  deleteComment,
+  getFilePairDetails,
 } = require('../controllers/uploadController');
 const { ROLES } = require('../constants/roles');
 const { QA_TEAMS } = require('../constants/roles');
@@ -26,8 +28,10 @@ router.get('/mine', authMiddleware, getMyUploads);
 router.get('/text/:filePairId', authMiddleware, getTextContent);
 router.put('/text/:filePairId', authMiddleware, saveEditedText);
 router.get('/records', authMiddleware, roleMiddleware(...QA_TEAMS, ROLES.MONITOR, ROLES.ADMIN), listRecords);
+router.get('/:filePairId', authMiddleware, getFilePairDetails);
 router.put('/:filePairId/sold', authMiddleware, updateSoldStatus);
 router.post('/:filePairId/comments', authMiddleware, roleMiddleware(...QA_TEAMS, ROLES.MONITOR, ROLES.ADMIN), addComment);
+router.delete('/:filePairId/comments/:commentId', authMiddleware, roleMiddleware(...QA_TEAMS, ROLES.MONITOR, ROLES.ADMIN), deleteComment);
 
 module.exports = router;
 
