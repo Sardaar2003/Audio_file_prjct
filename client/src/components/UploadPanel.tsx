@@ -42,6 +42,7 @@ const UploadPanel = () => {
   const [audioFiles, setAudioFiles] = useState<File[]>([]);
   const [textFiles, setTextFiles] = useState<File[]>([]);
   const [uploadCount, setUploadCount] = useState(0);
+  const [uploadSoldStatus, setUploadSoldStatus] = useState<'Sold' | 'Unsold'>('Unsold');
 
   useEffect(() => {
     const setDirAttrs = (el: HTMLInputElement | null) => {
@@ -89,6 +90,7 @@ const UploadPanel = () => {
     setUploadCount(combined.length);
     const formData = new FormData();
     combined.forEach((file) => formData.append('files', file));
+    formData.append('soldStatus', uploadSoldStatus);
 
     try {
       setUploading(true);
@@ -136,8 +138,23 @@ const UploadPanel = () => {
       <div>
         <h2 style={{ margin: 0 }}>Bulk Audio/Text Upload</h2>
         <p style={{ color: 'var(--muted)' }}>
-          Step 1: choose your .mp3 folder. Step 2: choose your .txt folder. We map by filename; if a counterpart is missing, it is saved as NA.
+          Step 1: choose your .mp3 folder. Step 2: choose your .txt folder. Step 3: select Sold/Unsold status. We map by filename; if a counterpart is missing, it is saved as NA.
         </p>
+      </div>
+      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <label style={{ color: 'var(--text)', fontWeight: 500 }}>Status for this upload:</label>
+          <select
+            className="select"
+            value={uploadSoldStatus}
+            onChange={(e) => setUploadSoldStatus(e.target.value as 'Sold' | 'Unsold')}
+            style={{ width: 'auto', minWidth: '120px' }}
+            disabled={uploading}
+          >
+            <option value="Unsold">Unsold</option>
+            <option value="Sold">Sold</option>
+          </select>
+        </div>
       </div>
       <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
         <label className="btn" style={{ width: 'fit-content' }}>

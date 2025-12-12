@@ -46,9 +46,10 @@ const buildPairs = (files) => {
   return merged;
 };
 
-const persistPairs = async ({ uploader, uploaderName, pairs }) => {
+const persistPairs = async ({ uploader, uploaderName, pairs, soldStatus = 'Unsold' }) => {
   console.log('💾 [uploadService] persistPairs called for', pairs.length, 'pairs');
   console.log('💾 [uploadService] Uploader:', uploader.toString(), uploaderName);
+  console.log('💾 [uploadService] Sold Status:', soldStatus);
   const saved = [];
   const duplicates = [];
 
@@ -120,6 +121,7 @@ const persistPairs = async ({ uploader, uploaderName, pairs }) => {
       audioMimeType: pair.audio?.mimetype || 'audio/mpeg',
       uploader,
       uploaderName,
+      soldStatus,
       status: FILE_STATUSES.PROCESSING,
       uploadedAt: new Date(),
     });
@@ -138,11 +140,12 @@ const persistPairs = async ({ uploader, uploaderName, pairs }) => {
   return { saved, duplicates };
 };
 
-const processUploadBatch = async ({ files, uploader, uploaderName }) => {
+const processUploadBatch = async ({ files, uploader, uploaderName, soldStatus = 'Unsold' }) => {
   console.log('\n🚀 [uploadService] processUploadBatch started');
   console.log('🚀 [uploadService] Total files received:', files.length);
   console.log('🚀 [uploadService] Uploader ID:', uploader.toString());
   console.log('🚀 [uploadService] Uploader name:', uploaderName);
+  console.log('🚀 [uploadService] Sold Status:', soldStatus);
 
   const pairs = buildPairs(files);
   if (!pairs.length) {
@@ -155,7 +158,7 @@ const processUploadBatch = async ({ files, uploader, uploaderName }) => {
   }
 
   console.log('📊 [uploadService] Pairs to process (can include single assets):', pairs.length);
-  const { saved, duplicates } = await persistPairs({ uploader, uploaderName, pairs });
+  const { saved, duplicates } = await persistPairs({ uploader, uploaderName, pairs, soldStatus });
 
   const fullyMapped = saved.filter((doc) => doc.audioAvailable && doc.textAvailable).length;
   const audioOnly = saved.filter((doc) => doc.audioAvailable && !doc.textAvailable).length;

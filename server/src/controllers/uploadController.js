@@ -9,11 +9,18 @@ const uploadFolder = asyncHandler(async (req, res) => {
   console.log('📤 [uploadController] uploadFolder called');
   console.log('📤 [uploadController] Files received:', req.files?.length || 0);
   console.log('📤 [uploadController] Uploader:', req.user?.id, req.user?.name);
+  console.log('📤 [uploadController] Sold Status:', req.body.soldStatus);
 
   if (!req.files || !req.files.length) {
     console.log('❌ [uploadController] No files provided');
     res.status(400);
     throw new Error('No files were provided');
+  }
+
+  const soldStatus = req.body.soldStatus || 'Unsold';
+  if (!['Sold', 'Unsold'].includes(soldStatus)) {
+    res.status(400);
+    throw new Error('Invalid soldStatus. Must be "Sold" or "Unsold"');
   }
 
   console.log('📤 [uploadController] Calling processUploadBatch...');
@@ -22,6 +29,7 @@ const uploadFolder = asyncHandler(async (req, res) => {
       files: req.files,
       uploader: req.user.id,
       uploaderName: req.user.name,
+      soldStatus,
     });
 
     console.log('✅ [uploadController] processUploadBatch completed');
