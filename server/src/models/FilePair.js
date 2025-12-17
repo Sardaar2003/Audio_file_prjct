@@ -15,6 +15,7 @@ const filePairSchema = new mongoose.Schema(
     // Metadata
     uploader: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     uploaderName: { type: String, required: true },
+    agentTag: { type: String, trim: true, default: '' },
     soldStatus: { type: String, enum: SOLD_STATUSES, default: 'Unsold', index: true },
     comments: [
       {

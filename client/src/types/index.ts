@@ -1,4 +1,4 @@
-export type Role = 'User' | 'QA1' | 'QA2' | 'Monitor' | 'Admin';
+export type Role = 'User' | 'Agent' | 'QA1' | 'QA2' | 'Monitor' | 'Admin';
 
 export interface User {
   id: string;
@@ -21,6 +21,7 @@ export interface FilePair {
   audioAvailable?: boolean;
   textAvailable?: boolean;
   uploaderName: string;
+  agentTag?: string;
   status: 'Processing' | 'Completed';
   soldStatus: 'Sold' | 'Unsold';
   uploadedAt: string;

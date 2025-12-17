@@ -3,13 +3,14 @@ const asyncHandler = require('../utils/asyncHandler');
 const { processUploadBatch } = require('../services/uploadService');
 const { downloadFromS3, uploadToS3, generateS3Key } = require('../services/s3Service');
 const { QA_TEAMS, ROLES } = require('../constants/roles');
-const { SOLD_STATUSES } = require('../constants/statuses');
+const { FILE_STATUSES, SOLD_STATUSES } = require('../constants/statuses');
 
 const uploadFolder = asyncHandler(async (req, res) => {
   console.log('📤 [uploadController] uploadFolder called');
   console.log('📤 [uploadController] Files received:', req.files?.length || 0);
   console.log('📤 [uploadController] Uploader:', req.user?.id, req.user?.name);
   console.log('📤 [uploadController] Sold Status:', req.body.soldStatus);
+  console.log('📤 [uploadController] Agent Tag:', req.body.agentTag);
 
   if (!req.files || !req.files.length) {
     console.log('❌ [uploadController] No files provided');
@@ -18,6 +19,7 @@ const uploadFolder = asyncHandler(async (req, res) => {
   }
 
   const soldStatus = req.body.soldStatus || 'Unsold';
+  const agentTag = (req.body.agentTag || '').toString().trim();
   if (!['Sold', 'Unsold'].includes(soldStatus)) {
     res.status(400);
     throw new Error('Invalid soldStatus. Must be "Sold" or "Unsold"');
@@ -30,6 +32,7 @@ const uploadFolder = asyncHandler(async (req, res) => {
       uploader: req.user.id,
       uploaderName: req.user.name,
       soldStatus,
+      agentTag,
     });
 
     console.log('✅ [uploadController] processUploadBatch completed');
@@ -247,6 +250,13 @@ const addComment = asyncHandler(async (req, res) => {
     message,
     createdAt: new Date(),
   });
+
+  // When monitor comments on a record that is still processing,
+  // automatically mark it as completed (processed).
+  if (req.user.role === ROLES.MONITOR && filePair.status === FILE_STATUSES.PROCESSING) {
+    filePair.status = FILE_STATUSES.COMPLETED;
+  }
+
   await filePair.save();
 
   res.status(201).json({ success: true, comments: filePair.comments });

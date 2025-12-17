@@ -46,10 +46,11 @@ const buildPairs = (files) => {
   return merged;
 };
 
-const persistPairs = async ({ uploader, uploaderName, pairs, soldStatus = 'Unsold' }) => {
+const persistPairs = async ({ uploader, uploaderName, pairs, soldStatus = 'Unsold', agentTag = '' }) => {
   console.log('💾 [uploadService] persistPairs called for', pairs.length, 'pairs');
   console.log('💾 [uploadService] Uploader:', uploader.toString(), uploaderName);
   console.log('💾 [uploadService] Sold Status:', soldStatus);
+  console.log('💾 [uploadService] Agent Tag:', agentTag || '(none)');
   const saved = [];
   const duplicates = [];
 
@@ -121,6 +122,7 @@ const persistPairs = async ({ uploader, uploaderName, pairs, soldStatus = 'Unsol
       audioMimeType: pair.audio?.mimetype || 'audio/mpeg',
       uploader,
       uploaderName,
+      agentTag,
       soldStatus,
       status: FILE_STATUSES.PROCESSING,
       uploadedAt: new Date(),
@@ -140,12 +142,13 @@ const persistPairs = async ({ uploader, uploaderName, pairs, soldStatus = 'Unsol
   return { saved, duplicates };
 };
 
-const processUploadBatch = async ({ files, uploader, uploaderName, soldStatus = 'Unsold' }) => {
+const processUploadBatch = async ({ files, uploader, uploaderName, soldStatus = 'Unsold', agentTag = '' }) => {
   console.log('\n🚀 [uploadService] processUploadBatch started');
   console.log('🚀 [uploadService] Total files received:', files.length);
   console.log('🚀 [uploadService] Uploader ID:', uploader.toString());
   console.log('🚀 [uploadService] Uploader name:', uploaderName);
   console.log('🚀 [uploadService] Sold Status:', soldStatus);
+  console.log('🚀 [uploadService] Agent Tag:', agentTag || '(none)');
 
   const pairs = buildPairs(files);
   if (!pairs.length) {
@@ -158,7 +161,7 @@ const processUploadBatch = async ({ files, uploader, uploaderName, soldStatus = 
   }
 
   console.log('📊 [uploadService] Pairs to process (can include single assets):', pairs.length);
-  const { saved, duplicates } = await persistPairs({ uploader, uploaderName, pairs, soldStatus });
+  const { saved, duplicates } = await persistPairs({ uploader, uploaderName, pairs, soldStatus, agentTag });
 
   const fullyMapped = saved.filter((doc) => doc.audioAvailable && doc.textAvailable).length;
   const audioOnly = saved.filter((doc) => doc.audioAvailable && !doc.textAvailable).length;

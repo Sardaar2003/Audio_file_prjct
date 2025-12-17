@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { addComment, deleteComment, fetchRecords, fetchTextContent, getFilePresignedUrl, fetchFilePairDetails } from '../api';
 import type { PaginatedResponse } from '../api';
 import { RecordComment, FilePair } from '../types';
 import { useAuth } from '../context/AuthContext';
+import dayjs from 'dayjs';
 
 const ManagerPanel = () => {
   const queryClient = useQueryClient();
@@ -14,6 +15,13 @@ const ManagerPanel = () => {
   const [soldStatus, setSoldStatus] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [comment, setComment] = useState('');
+  const [showComments, setShowComments] = useState(false);
+  const [commentOnly, setCommentOnly] = useState(false);
+
+  useEffect(() => {
+    setShowComments(false);
+    setComment('');
+  }, [selectedId]);
 
   const recordsQuery = useQuery<PaginatedResponse<FilePair>>({
     queryKey: ['monitorRecords', status, search, soldStatus, page],
@@ -141,9 +149,8 @@ const ManagerPanel = () => {
             <thead>
               <tr>
                 <th>File</th>
-                <th>Uploader</th>
-                <th>Sold</th>
                 <th>Status</th>
+                <th>Comment</th>
                 <th>Uploaded</th>
               </tr>
             </thead>
@@ -151,23 +158,39 @@ const ManagerPanel = () => {
               {files.map((file: FilePair) => (
                 <tr key={file._id}>
                   <td>
-                    <button className="nav-link" onClick={() => setSelectedId(file._id)}>
+                    <button
+                      className="nav-link"
+                      onClick={() => {
+                        setSelectedId(file._id);
+                        setCommentOnly(false);
+                      }}
+                    >
                       {file.baseName}
                     </button>
                   </td>
-                  <td>{file.uploaderName}</td>
                   <td>
-                    <span className="badge completed">{file.soldStatus || 'Unsold'}</span>
+                    <span className={`badge ${file.status === 'Completed' ? 'completed' : 'processing'}`}>
+                      {file.status === 'Completed' ? 'Processed' : 'Processing'}
+                    </span>
                   </td>
                   <td>
-                    <span className={`badge ${file.status === 'Completed' ? 'completed' : 'processing'}`}>{file.status}</span>
+                    <button
+                      className="btn secondary"
+                      onClick={() => {
+                        setSelectedId(file._id);
+                        setShowComments(true);
+                        setCommentOnly(true);
+                      }}
+                    >
+                      Comment
+                    </button>
                   </td>
-                  <td>{new Date(file.uploadedAt).toLocaleString()}</td>
+                  <td>{dayjs(file.uploadedAt).format('DD-MM-YYYY')}</td>
                 </tr>
               ))}
               {files.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)' }}>
+                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)' }}>
                     {recordsQuery.isFetching ? 'Loading...' : 'No records found'}
                   </td>
                 </tr>
@@ -202,53 +225,67 @@ const ManagerPanel = () => {
             </button>
             <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>{selectedRecord.baseName}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div>
-                <p style={{ color: 'var(--muted)', marginTop: 0, marginBottom: '0.5rem' }}>
-                  Uploader: <strong>{selectedRecord.uploaderName}</strong> · Status: <strong>{selectedRecord.status}</strong> · Sold: <strong>{selectedRecord.soldStatus || 'Unsold'}</strong>
-                </p>
-                <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
-                  Audio available: {selectedRecord.audioAvailable ? 'Yes' : 'No'} · Text available: {selectedRecord.textAvailable ? 'Yes' : 'No'} · Uploaded: {new Date(selectedRecord.uploadedAt).toLocaleString()}
-                </p>
-              </div>
+              {!commentOnly && (
+                <>
+                  <div>
+                    <p style={{ color: 'var(--muted)', marginTop: 0, marginBottom: '0.5rem' }}>
+                      Status:{' '}
+                      <strong>{selectedRecord.status === 'Completed' ? 'Processed' : 'Processing'}</strong>
+                    </p>
+                    <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
+                      Audio available: {selectedRecord.audioAvailable ? 'Yes' : 'No'} · Text available: {selectedRecord.textAvailable ? 'Yes' : 'No'} · Uploaded:{' '}
+                      {new Date(selectedRecord.uploadedAt).toLocaleString()}
+                    </p>
+                  </div>
 
-              {audioUrlQuery.isLoading ? (
-                <p style={{ color: 'var(--muted)' }}>Loading audio...</p>
-              ) : audioUrlQuery.data ? (
-                <div>
-                  <p className="panel-title">Audio</p>
-                  <audio className="audio-player" controls src={audioUrlQuery.data}>
-                    Your browser does not support the audio element.
-                  </audio>
-                </div>
-              ) : (
-                <p style={{ color: '#f87171' }}>Audio not available</p>
+                  {audioUrlQuery.isLoading ? (
+                    <p style={{ color: 'var(--muted)' }}>Loading audio...</p>
+                  ) : audioUrlQuery.data ? (
+                    <div>
+                      <p className="panel-title">Audio</p>
+                      <audio className="audio-player" controls src={audioUrlQuery.data}>
+                        Your browser does not support the audio element.
+                      </audio>
+                    </div>
+                  ) : (
+                    <p style={{ color: '#f87171' }}>Audio not available</p>
+                  )}
+
+                  <div>
+                    <p className="panel-title">Transcript</p>
+                    <div className="text-viewer" style={{ maxHeight: '300px' }}>
+                      {textQuery.isLoading ? 'Loading text...' : textQuery.data?.textContent || 'No transcript available'}
+                    </div>
+                  </div>
+                </>
               )}
 
               <div>
-                <p className="panel-title">Transcript</p>
-                <div className="text-viewer" style={{ maxHeight: '300px' }}>
-                  {textQuery.isLoading ? 'Loading text...' : textQuery.data?.textContent || 'No transcript available'}
-                </div>
-              </div>
-
-              <div>
                 <p className="panel-title">Comments</p>
-                {renderComments(selectedRecord.comments)}
-                <textarea
-                  className="textarea"
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Add monitor remarks..."
-                  style={{ marginTop: '1rem' }}
-                />
-                <button
-                  className="btn"
-                  style={{ marginTop: '0.75rem' }}
-                  onClick={() => commentMutation.mutate({ id: selectedRecord._id, message: comment })}
-                  disabled={commentMutation.isPending || !comment}
-                >
-                  {commentMutation.isPending ? 'Saving...' : 'Save Comment'}
-                </button>
+                {!showComments ? (
+                  <button className="btn secondary" onClick={() => setShowComments(true)} style={{ marginTop: '0.5rem' }}>
+                    Comments
+                  </button>
+                ) : (
+                  <>
+                    {renderComments(selectedRecord.comments)}
+                    <textarea
+                      className="textarea"
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="Add monitor remarks..."
+                      style={{ marginTop: '1rem' }}
+                    />
+                    <button
+                      className="btn"
+                      style={{ marginTop: '0.75rem' }}
+                      onClick={() => commentMutation.mutate({ id: selectedRecord._id, message: comment })}
+                      disabled={commentMutation.isPending || !comment}
+                    >
+                      {commentMutation.isPending ? 'Saving...' : 'Save Comment'}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

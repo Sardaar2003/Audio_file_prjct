@@ -5,7 +5,7 @@ import { deleteUser, fetchAdminStats, fetchUsers, updateUserRole, fetchAdminFile
 import { AdminStats as AdminStatsType, FilePair, User, RecordComment } from '../types';
 import { useAuth } from '../context/AuthContext';
 
-const ROLE_OPTIONS = ['User', 'QA1', 'QA2', 'Monitor', 'Admin'];
+const ROLE_OPTIONS = ['User', 'Agent', 'QA1', 'QA2', 'Monitor', 'Admin'];
 
 const AdminPanel = () => {
   const queryClient = useQueryClient();
@@ -16,6 +16,7 @@ const AdminPanel = () => {
   const [page, setPage] = useState(1);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [comment, setComment] = useState('');
+  const [showComments, setShowComments] = useState(false);
   const statsQuery = useQuery({
     queryKey: ['adminStats'],
     queryFn: async () => {
@@ -47,6 +48,11 @@ const AdminPanel = () => {
   useEffect(() => {
     setPage(1);
   }, [fileStatus, soldStatus, search]);
+
+  useEffect(() => {
+    setShowComments(false);
+    setComment('');
+  }, [selectedFileId]);
 
   const filesQuery = useQuery<PaginatedResponse<FilePair>>({
     queryKey: ['adminFilePairs', fileStatus, soldStatus, search, page],
@@ -202,6 +208,7 @@ const AdminPanel = () => {
                 <th>Filename</th>
                 <th>Uploader</th>
                 <th>Sold?</th>
+                <th>Agent Tag</th>
                 <th>Status</th>
                 <th>Uploaded</th>
                 <th>Actions</th>
@@ -217,6 +224,7 @@ const AdminPanel = () => {
                   </td>
                   <td>{file.uploaderName}</td>
                   <td>{file.soldStatus}</td>
+                  <td>{file.agentTag || '—'}</td>
                   <td>{file.status}</td>
                   <td>{new Date(file.uploadedAt).toLocaleString()}</td>
                   <td>
@@ -237,7 +245,7 @@ const AdminPanel = () => {
               ))}
               {filesQuery.data?.data.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)' }}>
                     {filesQuery.isFetching ? 'Loading...' : 'No files found'}
                   </td>
                 </tr>
@@ -395,10 +403,13 @@ const AdminPanel = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div>
                 <p style={{ color: 'var(--muted)', marginTop: 0, marginBottom: '0.5rem' }}>
-                  Uploader: <strong>{selectedFile.uploaderName}</strong> · Status: <strong>{selectedFile.status}</strong> · Sold: <strong>{selectedFile.soldStatus || 'Unsold'}</strong>
+                  Uploader: <strong>{selectedFile.uploaderName}</strong> · Status:{' '}
+                  <strong>{selectedFile.status}</strong> · Sold:{' '}
+                  <strong>{selectedFile.soldStatus || 'Unsold'}</strong>
                 </p>
                 <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
-                  Audio available: {selectedFile.audioAvailable ? 'Yes' : 'No'} · Text available: {selectedFile.textAvailable ? 'Yes' : 'No'} · Uploaded: {new Date(selectedFile.uploadedAt).toLocaleString()}
+                  Audio available: {selectedFile.audioAvailable ? 'Yes' : 'No'} · Text available: {selectedFile.textAvailable ? 'Yes' : 'No'} · Agent tag:{' '}
+                  {selectedFile.agentTag || '—'} · Uploaded: {new Date(selectedFile.uploadedAt).toLocaleString()}
                 </p>
               </div>
 
@@ -424,22 +435,30 @@ const AdminPanel = () => {
 
               <div>
                 <p className="panel-title">Comments</p>
-                {renderComments(selectedFile.comments)}
-                <textarea
-                  className="textarea"
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Add admin comment..."
-                  style={{ marginTop: '1rem' }}
-                />
-                <button
-                  className="btn"
-                  style={{ marginTop: '0.75rem' }}
-                  onClick={() => commentMutation.mutate({ id: selectedFile._id, message: comment })}
-                  disabled={commentMutation.isPending || !comment}
-                >
-                  {commentMutation.isPending ? 'Saving...' : 'Save Comment'}
-                </button>
+                {!showComments ? (
+                  <button className="btn secondary" onClick={() => setShowComments(true)} style={{ marginTop: '0.5rem' }}>
+                    Comments
+                  </button>
+                ) : (
+                  <>
+                    {renderComments(selectedFile.comments)}
+                    <textarea
+                      className="textarea"
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="Add admin comment..."
+                      style={{ marginTop: '1rem' }}
+                    />
+                    <button
+                      className="btn"
+                      style={{ marginTop: '0.75rem' }}
+                      onClick={() => commentMutation.mutate({ id: selectedFile._id, message: comment })}
+                      disabled={commentMutation.isPending || !comment}
+                    >
+                      {commentMutation.isPending ? 'Saving...' : 'Save Comment'}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

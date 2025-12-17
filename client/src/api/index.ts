@@ -79,6 +79,8 @@ export const fetchManagerFilePairs = (params: { status?: string; search?: string
 
 export const fetchQAUsers = () => http.get<{ success: boolean; data: User[] }>('/api/manager/qa-users');
 
+export const fetchAgentUsers = () => http.get<{ success: boolean; data: User[] }>('/api/users/agents');
+
 export const assignFilePair = (payload: { filePairId: string; qaUserId: string }) =>
   http.post<{ success: boolean }>('/api/manager/assign', payload);
 

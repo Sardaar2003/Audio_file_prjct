@@ -19,7 +19,7 @@ const { QA_TEAMS } = require('../constants/roles');
 router.post(
   '/folder',
   authMiddleware,
-  roleMiddleware(ROLES.USER, ROLES.ADMIN, ROLES.MONITOR),
+  roleMiddleware(ROLES.USER, ROLES.AGENT, ROLES.ADMIN, ROLES.MONITOR),
   upload.array('files'),
   uploadFolder
 );

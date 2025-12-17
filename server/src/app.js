@@ -10,6 +10,7 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const managerRoutes = require('./routes/managerRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const userRoutes = require('./routes/userRoutes');
 const fileRoutes = require('./routes/fileRoutes');
 const { generateFileUrl } = require('./controllers/fileController');
 const authMiddleware = require('./middleware/authMiddleware');
@@ -35,6 +36,7 @@ app.use('/api/uploads', uploadRoutes);
 app.use('/api/manager', managerRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/files', fileRoutes);
 
 // Unified file presigned URL route (GET /file/:id?type=audio|text|review)

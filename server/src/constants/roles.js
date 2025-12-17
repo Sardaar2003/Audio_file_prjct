@@ -1,5 +1,6 @@
 const ROLES = {
   USER: 'User',
+  AGENT: 'Agent',
   QA1: 'QA1',
   QA2: 'QA2',
   MONITOR: 'Monitor',

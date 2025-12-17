@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchMyUploads, uploadFolder, updateSoldStatus } from '../api';
+import { fetchAgentUsers, fetchMyUploads, uploadFolder, updateSoldStatus } from '../api';
 import type { PaginatedResponse } from '../api';
 import { FilePair, UploadSummary } from '../types';
 
@@ -43,6 +43,7 @@ const UploadPanel = () => {
   const [textFiles, setTextFiles] = useState<File[]>([]);
   const [uploadCount, setUploadCount] = useState(0);
   const [uploadSoldStatus, setUploadSoldStatus] = useState<'Sold' | 'Unsold'>('Unsold');
+  const [agentTag, setAgentTag] = useState<string>('');
 
   useEffect(() => {
     const setDirAttrs = (el: HTMLInputElement | null) => {
@@ -54,6 +55,14 @@ const UploadPanel = () => {
     setDirAttrs(mp3InputRef.current);
     setDirAttrs(txtInputRef.current);
   }, []);
+
+  const agentsQuery = useQuery({
+    queryKey: ['agents'],
+    queryFn: async () => {
+      const response = await fetchAgentUsers();
+      return response.data.data;
+    },
+  });
 
   const uploadsQuery = useQuery<PaginatedResponse<FilePair>>({
     queryKey: ['myUploads', status, search, soldStatus, page],
@@ -91,6 +100,7 @@ const UploadPanel = () => {
     const formData = new FormData();
     combined.forEach((file) => formData.append('files', file));
     formData.append('soldStatus', uploadSoldStatus);
+    formData.append('agentTag', agentTag);
 
     try {
       setUploading(true);
@@ -153,6 +163,23 @@ const UploadPanel = () => {
           >
             <option value="Unsold">Unsold</option>
             <option value="Sold">Sold</option>
+          </select>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <label style={{ color: 'var(--text)', fontWeight: 500 }}>Agent tag:</label>
+          <select
+            className="select"
+            value={agentTag}
+            onChange={(e) => setAgentTag(e.target.value)}
+            style={{ width: 'auto', minWidth: '140px' }}
+            disabled={uploading}
+          >
+            <option value="">Select agent tag</option>
+            {agentsQuery.data?.map((agent) => (
+              <option key={agent.id} value={agent.name}>
+                {agent.name}
+              </option>
+            ))}
           </select>
         </div>
       </div>
