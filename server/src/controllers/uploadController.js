@@ -251,10 +251,11 @@ const addComment = asyncHandler(async (req, res) => {
     createdAt: new Date(),
   });
 
-  // When monitor comments on a record that is still processing,
-  // automatically mark it as completed (processed).
-  if (req.user.role === ROLES.MONITOR && filePair.status === FILE_STATUSES.PROCESSING) {
+  // When a comment is added on a record that is still processing,
+  // automatically mark it as completed (processed), regardless of role.
+  if (filePair.status === FILE_STATUSES.PROCESSING) {
     filePair.status = FILE_STATUSES.COMPLETED;
+    filePair.completedAt = new Date();
   }
 
   await filePair.save();
@@ -286,6 +287,13 @@ const deleteComment = asyncHandler(async (req, res) => {
   }
 
   filePair.comments.pull(commentId);
+  // If there are no comments left and the record was auto-marked completed,
+  // revert it back to Processing so it can be worked again.
+  if (filePair.comments.length === 0 && filePair.status === FILE_STATUSES.COMPLETED) {
+    filePair.status = FILE_STATUSES.PROCESSING;
+    filePair.completedAt = undefined;
+  }
+
   await filePair.save();
 
   res.json({ success: true, comments: filePair.comments });
