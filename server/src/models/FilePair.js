@@ -12,10 +12,13 @@ const filePairSchema = new mongoose.Schema(
     audioMimeType: { type: String, default: 'audio/mpeg' },
     // QA edited text stored in S3 (filename.F.txt)
     reviewTextS3Key: { type: String },
+    audioSize: { type: Number, default: 0 },
+    textSize: { type: Number, default: 0 },
     // Metadata
     uploader: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     uploaderName: { type: String, required: true },
     agentTag: { type: String, trim: true, default: '' },
+    flag: { type: String, enum: ['Issue', 'Warning', 'No Issue'], default: 'No Issue', index: true },
     soldStatus: { type: String, enum: SOLD_STATUSES, default: 'Unsold', index: true },
     comments: [
       {

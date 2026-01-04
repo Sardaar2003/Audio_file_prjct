@@ -308,8 +308,18 @@ const UploadPanel = () => {
               {tableRows.map((file: FilePair) => (
                 <tr key={file._id}>
                   <td>{new Date(file.uploadedAt).toLocaleString()}</td>
-                  <td>{file.audioAvailable ? `${file.baseName}.mp3` : 'NA'}</td>
-                  <td>{file.textAvailable ? `${file.baseName}.txt` : 'NA'}</td>
+                  <td>
+                    {file.audioAvailable ? `${file.baseName}.mp3` : 'NA'}
+                    {file.audioAvailable ? (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--muted)', display: 'block' }}>{formatBytes(file.audioSize || 0)}</span>
+                    ) : null}
+                  </td>
+                  <td>
+                    {file.textAvailable ? `${file.baseName}.txt` : 'NA'}
+                    {file.textAvailable ? (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--muted)', display: 'block' }}>{formatBytes(file.textSize || 0)}</span>
+                    ) : null}
+                  </td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button

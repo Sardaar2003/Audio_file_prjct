@@ -1,7 +1,8 @@
 const FilePair = require('../models/FilePair');
 const asyncHandler = require('../utils/asyncHandler');
 const { processUploadBatch } = require('../services/uploadService');
-const { downloadFromS3, uploadToS3, generateS3Key } = require('../services/s3Service');
+// const { processUploadBatch } = require('../services/uploadService');
+const { downloadFromS3, uploadToS3, generateS3Key, getFileSize } = require('../services/s3Service');
 const { QA_TEAMS, ROLES } = require('../constants/roles');
 const { FILE_STATUSES, SOLD_STATUSES } = require('../constants/statuses');
 
@@ -155,7 +156,7 @@ const saveEditedText = asyncHandler(async (req, res) => {
 
   // Generate S3 key for review text (filename.F.txt)
   const reviewS3Key = filePair.reviewTextS3Key || generateS3Key(filePair.uploader.toString(), filePair.baseName, '.F.txt');
-  
+
   // Upload review text to S3
   await uploadToS3(Buffer.from(content, 'utf8'), reviewS3Key, 'text/plain; charset=utf-8');
 
@@ -299,6 +300,94 @@ const deleteComment = asyncHandler(async (req, res) => {
   res.json({ success: true, comments: filePair.comments });
 });
 
+const migrateFileSizes = asyncHandler(async (req, res) => {
+  console.log('🔄 [adminController] Starting file size migration...');
+  const files = await FilePair.find({
+    $or: [
+      { audioSize: { $exists: false } },
+      { audioSize: 0 },
+      { textSize: { $exists: false } },
+      { textSize: 0 },
+    ],
+  });
+
+  console.log(`🔄 [adminController] Found ${files.length} files to migrate.`);
+  let updatedCount = 0;
+
+  for (const file of files) {
+    let changed = false;
+
+    if (file.audioAvailable && file.audioS3Key && file.audioS3Key !== 'NA' && !file.audioSize) {
+      const size = await getFileSize(file.audioS3Key);
+      if (size > 0) {
+        file.audioSize = size;
+        changed = true;
+      }
+    }
+
+    if (file.textAvailable && file.textS3Key && file.textS3Key !== 'NA' && !file.textSize) {
+      const size = await getFileSize(file.textS3Key);
+      if (size > 0) {
+        file.textSize = size;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await file.save();
+      updatedCount++;
+    }
+  }
+
+  console.log(`✅ [adminController] Migration completed. Updated ${updatedCount} files.`);
+  res.json({ success: true, updatedCount, totalChecked: files.length });
+});
+
+const updateFlag = asyncHandler(async (req, res) => {
+  const { filePairId } = req.params;
+  const { flag } = req.body;
+
+  if (!['Issue', 'Warning', 'No Issue'].includes(flag)) {
+    res.status(400);
+    throw new Error('Invalid flag status');
+  }
+
+  const filePair = await FilePair.findById(filePairId);
+  if (!filePair) {
+    res.status(404);
+    throw new Error('File pair not found');
+  }
+
+  filePair.flag = flag;
+  await filePair.save();
+
+  res.json({ success: true, filePair });
+});
+
+const updateStatus = asyncHandler(async (req, res) => {
+  const { filePairId } = req.params;
+  const { status } = req.body;
+
+  if (!Object.values(FILE_STATUSES).includes(status)) {
+    res.status(400);
+    throw new Error('Invalid status');
+  }
+
+  const filePair = await FilePair.findById(filePairId);
+  if (!filePair) {
+    res.status(404);
+    throw new Error('File pair not found');
+  }
+
+  filePair.status = status;
+  if (status === FILE_STATUSES.COMPLETED) {
+    filePair.completedAt = new Date();
+  }
+  await filePair.save();
+
+  res.json({ success: true, filePair });
+});
+
 const getFilePairDetails = asyncHandler(async (req, res) => {
   const { filePairId } = req.params;
   const filePair = await FilePair.findById(filePairId);
@@ -327,7 +416,11 @@ module.exports = {
   updateSoldStatus,
   addComment,
   deleteComment,
+  deleteComment,
+  updateFlag,
+  updateStatus,
   getFilePairDetails,
+  migrateFileSizes,
 };
 
 

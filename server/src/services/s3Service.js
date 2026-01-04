@@ -1,5 +1,7 @@
-let S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, getSignedUrl;
+let S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, getSignedUrl;
 let s3Client;
+
+
 
 console.log('🔧 [s3Service] Initializing AWS S3 service...');
 
@@ -44,17 +46,18 @@ try {
   console.log('📦 [s3Service] Attempting to require @aws-sdk/client-s3...');
   const s3Module = require('@aws-sdk/client-s3');
   console.log('✅ [s3Service] @aws-sdk/client-s3 loaded successfully');
-  
+
   console.log('📦 [s3Service] Attempting to require @aws-sdk/s3-request-presigner...');
   const presignerModule = require('@aws-sdk/s3-request-presigner');
   console.log('✅ [s3Service] @aws-sdk/s3-request-presigner loaded successfully');
-  
+
   S3Client = s3Module.S3Client;
   PutObjectCommand = s3Module.PutObjectCommand;
   GetObjectCommand = s3Module.GetObjectCommand;
   DeleteObjectCommand = s3Module.DeleteObjectCommand;
+  HeadObjectCommand = s3Module.HeadObjectCommand;
   getSignedUrl = presignerModule.getSignedUrl;
-  
+
   console.log('✅ [s3Service] All AWS SDK classes extracted');
 
   // Try to initialize now (in case env vars are already loaded)
@@ -62,11 +65,11 @@ try {
   const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
   const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
   const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
-  
+
   console.log('🔍 [s3Service] BUCKET_NAME:', BUCKET_NAME ? '***set***' : 'MISSING');
   console.log('🔍 [s3Service] AWS_ACCESS_KEY_ID:', AWS_ACCESS_KEY_ID ? '***set***' : 'MISSING');
   console.log('🔍 [s3Service] AWS_SECRET_ACCESS_KEY:', AWS_SECRET_ACCESS_KEY ? '***set***' : 'MISSING');
-  
+
   initializeS3Client();
 } catch (error) {
   console.error('❌ [s3Service] Failed to load AWS SDK');
@@ -96,7 +99,7 @@ const uploadToS3 = async (fileBuffer, key, contentType) => {
     const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
     const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
     const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
-    
+
     if (!BUCKET_NAME) {
       throw new Error('AWS_S3_BUCKET_NAME not configured in .env file');
     }
@@ -158,11 +161,11 @@ const downloadFromS3 = async (key) => {
 
   const response = await client.send(command);
   const chunks = [];
-  
+
   for await (const chunk of response.Body) {
     chunks.push(chunk);
   }
-  
+
   return Buffer.concat(chunks);
 };
 
@@ -240,6 +243,34 @@ const deleteFromS3 = async (key) => {
   }
 };
 
+
+
+/**
+ * Get file size from S3
+ * @param {string} key - S3 object key
+ * @returns {Promise<number>} File size in bytes
+ */
+const getFileSize = async (key) => {
+  if (!key || key === 'NA') return 0;
+
+  const client = initializeS3Client();
+  if (!client) return 0;
+
+  const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
+
+  try {
+    const command = new HeadObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    });
+    const response = await client.send(command);
+    return response.ContentLength || 0;
+  } catch (error) {
+    console.warn(`⚠️  [s3Service] Failed to get size for ${key}:`, error.message);
+    return 0;
+  }
+};
+
 /**
  * Generate S3 key for a file
  * @param {string} userId - User ID
@@ -258,6 +289,7 @@ module.exports = {
   downloadFromS3,
   getPresignedUrl,
   deleteFromS3,
+  getFileSize,
   generateS3Key,
 };
 

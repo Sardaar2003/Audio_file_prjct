@@ -11,7 +11,7 @@ const cleanupFileSafe = (filePath) => {
   fs.promises
     .access(filePath)
     .then(() => fs.promises.unlink(filePath))
-    .catch(() => {});
+    .catch(() => { });
 };
 
 const buildPairs = (files) => {
@@ -37,7 +37,7 @@ const buildPairs = (files) => {
       console.log('🎵 [uploadService] Added audio for:', baseName);
     } else if (ext === '.txt') {
       pairMap.get(baseName).text = file;
-      console.log('📄 [uploadService] Added text for:', baseName);
+      console.log('📄 [uploadService] Added text for:', baseName, 'Size:', file.size);
     }
   });
 
@@ -113,12 +113,20 @@ const persistPairs = async ({ uploader, uploaderName, pairs, soldStatus = 'Unsol
 
     // Store metadata in MongoDB with S3 keys (or NA if missing)
     console.log('💾 [uploadService] Saving to MongoDB...');
+    console.log(
+      '💾 [uploadService] Sizes - Audio:',
+      pair.audio ? pair.audio.size : 'N/A',
+      'Text:',
+      pair.text ? pair.text.size : 'N/A'
+    );
     const doc = await FilePair.create({
       baseName: pair.baseName,
       audioS3Key,
       textS3Key,
       audioAvailable: hasAudio,
       textAvailable: hasText,
+      audioSize: pair.audio?.size || 0,
+      textSize: pair.text?.size || 0,
       audioMimeType: pair.audio?.mimetype || 'audio/mpeg',
       uploader,
       uploaderName,

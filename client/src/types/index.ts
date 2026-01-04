@@ -20,6 +20,9 @@ export interface FilePair {
   textS3Key?: string;
   audioAvailable?: boolean;
   textAvailable?: boolean;
+  audioSize?: number;
+  textSize?: number;
+  flag?: 'Issue' | 'Warning' | 'No Issue';
   uploaderName: string;
   agentTag?: string;
   status: 'Processing' | 'Completed';

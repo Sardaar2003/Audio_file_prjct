@@ -47,6 +47,14 @@ export const fetchFilePairDetails = (filePairId: string) =>
 export const updateSoldStatus = (filePairId: string, soldStatus: 'Sold' | 'Unsold') =>
   http.put<{ success: boolean; data: FilePair }>(`/api/uploads/${filePairId}/sold`, { soldStatus });
 
+export const updateFlag = (filePairId: string, flag: string) =>
+  http.put<{ success: boolean; filePair: FilePair }>(`/api/uploads/${filePairId}/flag`, { flag });
+
+export const updateStatus = (filePairId: string, status: string) =>
+  http.put<{ success: boolean; filePair: FilePair }>(`/api/uploads/${filePairId}/status`, { status });
+
+
+
 export const addComment = (filePairId: string, message: string) =>
   http.post<{ success: boolean; comments: RecordComment[] }>(`/api/uploads/${filePairId}/comments`, { message });
 

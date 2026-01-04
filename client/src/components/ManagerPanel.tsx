@@ -1,10 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { addComment, deleteComment, fetchRecords, fetchTextContent, getFilePresignedUrl, fetchFilePairDetails } from '../api';
+import { addComment, deleteComment, fetchRecords, fetchTextContent, getFilePresignedUrl, fetchFilePairDetails, updateFlag, updateStatus } from '../api';
 import type { PaginatedResponse } from '../api';
 import { RecordComment, FilePair } from '../types';
 import { useAuth } from '../context/AuthContext';
 import dayjs from 'dayjs';
+
+// Helper function to format bytes
+const formatBytes = (bytes?: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  if (!bytes) return '';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+};
 
 const ManagerPanel = () => {
   const queryClient = useQueryClient();
@@ -149,6 +159,8 @@ const ManagerPanel = () => {
             <thead>
               <tr>
                 <th>File</th>
+                <th>Size</th>
+                <th>Flag</th>
                 <th>Status</th>
                 <th>Comment</th>
                 <th>Uploaded</th>
@@ -167,6 +179,51 @@ const ManagerPanel = () => {
                     >
                       {file.baseName}
                     </button>
+                  </td>
+                  <td style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+                    {file.audioAvailable && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <span>🎵</span>
+                        {typeof file.audioSize === 'number' ? formatBytes(file.audioSize) : '0 B'}
+                      </div>
+                    )}
+                    {file.textAvailable && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <span>📄</span>
+                        {typeof file.textSize === 'number' ? formatBytes(file.textSize) : '0 B'}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <select
+                      value={file.flag || 'No Issue'}
+                      onChange={async (e) => {
+                        const newFlag = e.target.value;
+                        try {
+                          await updateFlag(file._id, newFlag);
+                          queryClient.invalidateQueries({ queryKey: ['monitorRecords'] });
+                        } catch (err) {
+                          console.error('Failed to update flag', err);
+                        }
+                      }}
+                      style={{
+                        padding: '0.25rem',
+                        fontSize: '0.8rem',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor:
+                          (file.flag || 'No Issue') === 'Issue' ? '#ffebee' :
+                            (file.flag || 'No Issue') === 'Warning' ? '#fffde7' : '#e8f5e9',
+                        color:
+                          (file.flag || 'No Issue') === 'Issue' ? '#c62828' :
+                            (file.flag || 'No Issue') === 'Warning' ? '#fbc02d' : '#2e7d32',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      <option value="No Issue">No Issue</option>
+                      <option value="Warning">Warning</option>
+                      <option value="Issue">Issue</option>
+                    </select>
                   </td>
                   <td>
                     <span className={`badge ${file.status === 'Completed' ? 'completed' : 'processing'}`}>
@@ -233,8 +290,13 @@ const ManagerPanel = () => {
                       <strong>{selectedRecord.status === 'Completed' ? 'Processed' : 'Processing'}</strong>
                     </p>
                     <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
-                      Audio available: {selectedRecord.audioAvailable ? 'Yes' : 'No'} · Text available: {selectedRecord.textAvailable ? 'Yes' : 'No'} · Uploaded:{' '}
-                      {new Date(selectedRecord.uploadedAt).toLocaleString()}
+                      {selectedRecord.audioAvailable && typeof selectedRecord.audioSize === 'number' && (
+                        <span>Audio Size: {formatBytes(selectedRecord.audioSize)} · </span>
+                      )}
+                      {selectedRecord.textAvailable && typeof selectedRecord.textSize === 'number' && (
+                        <span>Text Size: {formatBytes(selectedRecord.textSize)} · </span>
+                      )}
+                      Uploaded: {new Date(selectedRecord.uploadedAt).toLocaleString()}
                     </p>
                   </div>
 
@@ -289,6 +351,47 @@ const ManagerPanel = () => {
               </div>
             </div>
           </div>
+
+          <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+            {selectedRecord.status !== 'Completed' ? (
+              <button
+                onClick={async () => {
+                  try {
+                    await updateStatus(selectedRecord._id, 'Completed');
+                    queryClient.invalidateQueries({ queryKey: ['monitorRecords'] });
+                    queryClient.invalidateQueries({ queryKey: ['fileDetails', selectedId] });
+                    setSelectedId(null);
+                  } catch (err) {
+                    console.error('Failed to update status', err);
+                  }
+                }}
+                className="btn"
+                style={{ backgroundColor: '#2e7d32', borderColor: '#2e7d32', color: 'white' }}
+              >
+                Mark as Processed
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  try {
+                    await updateStatus(selectedRecord._id, 'Processing');
+                    queryClient.invalidateQueries({ queryKey: ['monitorRecords'] });
+                    queryClient.invalidateQueries({ queryKey: ['fileDetails', selectedId] });
+                    setSelectedId(null);
+                  } catch (err) {
+                    console.error('Failed to update status', err);
+                  }
+                }}
+                className="btn"
+                style={{ backgroundColor: '#fbc02d', borderColor: '#fbc02d', color: 'black' }}
+              >
+                Mark as Processing
+              </button>
+            )}
+            <button onClick={() => setSelectedId(null)} className="btn secondary">
+              Close
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -296,5 +399,3 @@ const ManagerPanel = () => {
 };
 
 export default ManagerPanel;
-
-

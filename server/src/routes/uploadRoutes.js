@@ -9,9 +9,13 @@ const {
   saveEditedText,
   listRecords,
   updateSoldStatus,
+  updateFlag,
+  updateStatus,
   addComment,
   deleteComment,
+
   getFilePairDetails,
+  migrateFileSizes,
 } = require('../controllers/uploadController');
 const { ROLES } = require('../constants/roles');
 const { QA_TEAMS } = require('../constants/roles');
@@ -30,8 +34,14 @@ router.put('/text/:filePairId', authMiddleware, saveEditedText);
 router.get('/records', authMiddleware, roleMiddleware(...QA_TEAMS, ROLES.MONITOR, ROLES.ADMIN), listRecords);
 router.get('/:filePairId', authMiddleware, getFilePairDetails);
 router.put('/:filePairId/sold', authMiddleware, updateSoldStatus);
+router.put('/:filePairId/sold', authMiddleware, updateSoldStatus);
+router.put('/:filePairId/flag', authMiddleware, roleMiddleware(...QA_TEAMS, ROLES.MONITOR, ROLES.ADMIN), updateFlag);
+router.put('/:filePairId/status', authMiddleware, roleMiddleware(...QA_TEAMS, ROLES.MONITOR, ROLES.ADMIN), updateStatus);
 router.post('/:filePairId/comments', authMiddleware, roleMiddleware(...QA_TEAMS, ROLES.MONITOR, ROLES.ADMIN), addComment);
 router.delete('/:filePairId/comments/:commentId', authMiddleware, roleMiddleware(...QA_TEAMS, ROLES.MONITOR, ROLES.ADMIN), deleteComment);
+
+router.post('/migrate-sizes', authMiddleware, roleMiddleware(ROLES.ADMIN), migrateFileSizes);
+// router.post('/migrate-sizes', migrateFileSizes);
 
 module.exports = router;
 

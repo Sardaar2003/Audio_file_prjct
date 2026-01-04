@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '../api';
-import { deleteUser, fetchAdminStats, fetchUsers, updateUserRole, fetchAdminFilePairs, deleteFilePairAdmin, fetchFilePairDetails, fetchTextContent, getFilePresignedUrl, addComment, deleteComment } from '../api';
+import { deleteUser, fetchAdminStats, fetchUsers, updateUserRole, fetchAdminFilePairs, deleteFilePairAdmin, fetchFilePairDetails, fetchTextContent, getFilePresignedUrl, addComment, deleteComment, updateFlag, updateStatus } from '../api';
 import { AdminStats as AdminStatsType, FilePair, User, RecordComment } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 const ROLE_OPTIONS = ['User', 'Agent', 'QA1', 'QA2', 'Monitor', 'Admin'];
+
+// Helper function to format bytes
+const formatBytes = (bytes?: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  if (!bytes) return '';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+};
 
 const AdminPanel = () => {
   const queryClient = useQueryClient();
@@ -206,9 +216,9 @@ const AdminPanel = () => {
             <thead>
               <tr>
                 <th>Filename</th>
-                <th>Uploader</th>
+                <th>Size</th>
+                <th>Flag</th>
                 <th>Sold?</th>
-                <th>Agent Tag</th>
                 <th>Status</th>
                 <th>Uploaded</th>
                 <th>Actions</th>
@@ -222,9 +232,52 @@ const AdminPanel = () => {
                       {file.baseName}
                     </button>
                   </td>
-                  <td>{file.uploaderName}</td>
+                  <td style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+                    {file.audioAvailable && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <span>🎵</span>
+                        {typeof file.audioSize === 'number' ? formatBytes(file.audioSize) : '0 B'}
+                      </div>
+                    )}
+                    {file.textAvailable && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <span>📄</span>
+                        {typeof file.textSize === 'number' ? formatBytes(file.textSize) : '0 B'}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <select
+                      value={file.flag || 'No Issue'}
+                      onChange={async (e) => {
+                        const newFlag = e.target.value;
+                        try {
+                          await updateFlag(file._id, newFlag);
+                          queryClient.invalidateQueries({ queryKey: ['adminFilePairs'] });
+                        } catch (err) {
+                          console.error('Failed to update flag', err);
+                        }
+                      }}
+                      style={{
+                        padding: '0.25rem',
+                        fontSize: '0.8rem',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor:
+                          (file.flag || 'No Issue') === 'Issue' ? '#ffebee' :
+                            (file.flag || 'No Issue') === 'Warning' ? '#fffde7' : '#e8f5e9',
+                        color:
+                          (file.flag || 'No Issue') === 'Issue' ? '#c62828' :
+                            (file.flag || 'No Issue') === 'Warning' ? '#fbc02d' : '#2e7d32',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      <option value="No Issue">No Issue</option>
+                      <option value="Warning">Warning</option>
+                      <option value="Issue">Issue</option>
+                    </select>
+                  </td>
                   <td>{file.soldStatus}</td>
-                  <td>{file.agentTag || '—'}</td>
                   <td>{file.status}</td>
                   <td>{new Date(file.uploadedAt).toLocaleString()}</td>
                   <td>
@@ -408,8 +461,13 @@ const AdminPanel = () => {
                   <strong>{selectedFile.soldStatus || 'Unsold'}</strong>
                 </p>
                 <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>
-                  Audio available: {selectedFile.audioAvailable ? 'Yes' : 'No'} · Text available: {selectedFile.textAvailable ? 'Yes' : 'No'} · Agent tag:{' '}
-                  {selectedFile.agentTag || '—'} · Uploaded: {new Date(selectedFile.uploadedAt).toLocaleString()}
+                  {selectedFile.audioAvailable && typeof selectedFile.audioSize === 'number' && (
+                    <span>Audio Size: {formatBytes(selectedFile.audioSize)} · </span>
+                  )}
+                  {selectedFile.textAvailable && typeof selectedFile.textSize === 'number' && (
+                    <span>Text Size: {formatBytes(selectedFile.textSize)} · </span>
+                  )}
+                  Agent tag: {selectedFile.agentTag || '—'} · Uploaded: {new Date(selectedFile.uploadedAt).toLocaleString()}
                 </p>
               </div>
 
@@ -462,6 +520,47 @@ const AdminPanel = () => {
               </div>
             </div>
           </div>
+
+          <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+            {selectedFile.status !== 'Completed' ? (
+              <button
+                onClick={async () => {
+                  try {
+                    await updateStatus(selectedFile._id, 'Completed');
+                    queryClient.invalidateQueries({ queryKey: ['adminFilePairs'] });
+                    queryClient.invalidateQueries({ queryKey: ['fileDetails', selectedFileId] });
+                    setSelectedFileId(null);
+                  } catch (err) {
+                    console.error('Failed to update status', err);
+                  }
+                }}
+                className="btn"
+                style={{ backgroundColor: '#2e7d32', borderColor: '#2e7d32', color: 'white' }}
+              >
+                Mark as Processed
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  try {
+                    await updateStatus(selectedFile._id, 'Processing');
+                    queryClient.invalidateQueries({ queryKey: ['adminFilePairs'] });
+                    queryClient.invalidateQueries({ queryKey: ['fileDetails', selectedFileId] });
+                    setSelectedFileId(null);
+                  } catch (err) {
+                    console.error('Failed to update status', err);
+                  }
+                }}
+                className="btn"
+                style={{ backgroundColor: '#fbc02d', borderColor: '#fbc02d', color: 'black' }}
+              >
+                Mark as Processing
+              </button>
+            )}
+            <button onClick={() => setSelectedFileId(null)} className="btn secondary">
+              Close
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -469,5 +568,3 @@ const AdminPanel = () => {
 };
 
 export default AdminPanel;
-
-
