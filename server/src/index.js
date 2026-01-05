@@ -2,6 +2,11 @@
 const path = require('path');
 const dotenv = require('dotenv');
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
+console.log('🔍 [index.js] Dotenv loaded.');
+console.log(`🔍 [index.js] OPENAI_API_KEY present: ${!!process.env.OPENAI_API_KEY}`);
+if (process.env.OPENAI_API_KEY) {
+  console.log(`🔍 [index.js] OPENAI_API_KEY starts with: ${process.env.OPENAI_API_KEY.substring(0, 3)}...`);
+}
 
 // Now require other modules (they can access process.env)
 const http = require('http');

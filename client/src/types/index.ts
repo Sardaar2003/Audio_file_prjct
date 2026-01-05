@@ -1,4 +1,4 @@
-export type Role = 'User' | 'Agent' | 'QA1' | 'QA2' | 'Monitor' | 'Admin';
+export type Role = 'Agent' | 'Monitor' | 'Admin';
 
 export interface User {
   id: string;
@@ -55,7 +55,7 @@ export interface Assignment {
   filePair: FilePair;
   assignedByName: string;
   assignedToName: string;
-  teamTag: 'QA1' | 'QA2';
+  teamTag?: string;
   assignedAt: string;
   status: 'Assigned' | 'Completed';
 }
@@ -63,7 +63,7 @@ export interface Assignment {
 export interface Review {
   _id: string;
   reviewerName: string;
-  teamTag: 'QA1' | 'QA2';
+  teamTag?: string;
   soldStatus: 'Sold' | 'Unsold';
   status: 'Pending' | 'OK' | 'Issue';
   comment: string;

@@ -16,8 +16,8 @@ const DashboardPage = () => {
 
   const tabs = useMemo(() => {
     const items: { key: TabKey; label: string }[] = [{ key: 'overview', label: 'Overview' }];
-    if (user.role === 'User') items.push({ key: 'uploads', label: 'Uploads' });
-    if (user.role === 'QA1' || user.role === 'QA2') items.push({ key: 'qa', label: 'QA Queue' });
+
+
     if (user.role === 'Monitor') items.push({ key: 'manager', label: 'Monitor' });
     if (user.role === 'Admin') {
       items.push({ key: 'uploads', label: 'Uploads' });

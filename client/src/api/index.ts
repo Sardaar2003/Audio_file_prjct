@@ -97,6 +97,9 @@ export const fetchAssignmentsForManager = (params: { teamTag?: string; qaUserId?
 
 export const fetchAdminStats = () => http.get<{ success: boolean } & AdminStats>('/api/admin/stats');
 
+// Transcribe file
+export const transcribeFile = (id: string) => http.post(`/api/files/file/${id}/transcribe`);
+
 export const fetchUsers = () => http.get<{ success: boolean; data: User[] }>('/api/admin/users');
 
 export const updateUserRole = (userId: string, role: string) =>

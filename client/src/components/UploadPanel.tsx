@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchAgentUsers, fetchMyUploads, uploadFolder, updateSoldStatus } from '../api';
+import { fetchMyUploads, uploadFolder, updateSoldStatus } from '../api';
 import type { PaginatedResponse } from '../api';
 import { FilePair, UploadSummary } from '../types';
 
@@ -29,7 +29,6 @@ const calculateUploadSpeed = (loaded: number, total: number, startTime: number):
 const UploadPanel = () => {
   const queryClient = useQueryClient();
   const mp3InputRef = useRef<HTMLInputElement | null>(null);
-  const txtInputRef = useRef<HTMLInputElement | null>(null);
   const uploadStartTimeRef = useRef<number>(0);
   const [summary, setSummary] = useState<UploadSummary | null>(null);
   const [duplicates, setDuplicates] = useState<string[]>([]);
@@ -40,10 +39,10 @@ const UploadPanel = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ loaded: 0, total: 0 });
   const [audioFiles, setAudioFiles] = useState<File[]>([]);
-  const [textFiles, setTextFiles] = useState<File[]>([]);
   const [uploadCount, setUploadCount] = useState(0);
-  const [uploadSoldStatus, setUploadSoldStatus] = useState<'Sold' | 'Unsold'>('Unsold');
-  const [agentTag, setAgentTag] = useState<string>('');
+  // Fixed values as per requirement
+  const [uploadSoldStatus] = useState<'Sold' | 'Unsold'>('Unsold');
+  const [agentTag] = useState<string>('System Upload');
 
   useEffect(() => {
     const setDirAttrs = (el: HTMLInputElement | null) => {
@@ -53,16 +52,9 @@ const UploadPanel = () => {
       el.setAttribute('directory', 'true');
     };
     setDirAttrs(mp3InputRef.current);
-    setDirAttrs(txtInputRef.current);
   }, []);
 
-  const agentsQuery = useQuery({
-    queryKey: ['agents'],
-    queryFn: async () => {
-      const response = await fetchAgentUsers();
-      return response.data.data;
-    },
-  });
+
 
   const uploadsQuery = useQuery<PaginatedResponse<FilePair>>({
     queryKey: ['myUploads', status, search, soldStatus, page],
@@ -85,14 +77,10 @@ const UploadPanel = () => {
     setAudioFiles(Array.from(files));
   };
 
-  const handleTxtSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files?.length) return;
-    setTextFiles(Array.from(files));
-  };
+
 
   const handleUpload = async () => {
-    const combined = [...audioFiles, ...textFiles];
+    const combined = [...audioFiles];
     if (!combined.length) return;
 
     const totalSize = combined.reduce((sum, file) => sum + file.size, 0);
@@ -124,19 +112,16 @@ const UploadPanel = () => {
       setTimeout(() => {
         setUploadProgress({ loaded: 0, total: 0 });
         setAudioFiles([]);
-        setTextFiles([]);
         uploadStartTimeRef.current = 0;
       }, 2000);
     } catch (error) {
       console.error(error);
       setUploadProgress({ loaded: 0, total: 0 });
       setAudioFiles([]);
-      setTextFiles([]);
       uploadStartTimeRef.current = 0;
     } finally {
       setUploading(false);
       if (mp3InputRef.current) mp3InputRef.current.value = '';
-      if (txtInputRef.current) txtInputRef.current.value = '';
     }
   };
 
@@ -146,43 +131,12 @@ const UploadPanel = () => {
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <div>
-        <h2 style={{ margin: 0 }}>Bulk Audio/Text Upload</h2>
+        <h2 style={{ margin: 0 }}>Audio Upload</h2>
         <p style={{ color: 'var(--muted)' }}>
-          Step 1: choose your .mp3 folder. Step 2: choose your .txt folder. Step 3: select Sold/Unsold status. We map by filename; if a counterpart is missing, it is saved as NA.
+          Select a folder containing .mp3 files to upload. Records will be created automatically.
         </p>
       </div>
-      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <label style={{ color: 'var(--text)', fontWeight: 500 }}>Status for this upload:</label>
-          <select
-            className="select"
-            value={uploadSoldStatus}
-            onChange={(e) => setUploadSoldStatus(e.target.value as 'Sold' | 'Unsold')}
-            style={{ width: 'auto', minWidth: '120px' }}
-            disabled={uploading}
-          >
-            <option value="Unsold">Unsold</option>
-            <option value="Sold">Sold</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <label style={{ color: 'var(--text)', fontWeight: 500 }}>Agent tag:</label>
-          <select
-            className="select"
-            value={agentTag}
-            onChange={(e) => setAgentTag(e.target.value)}
-            style={{ width: 'auto', minWidth: '140px' }}
-            disabled={uploading}
-          >
-            <option value="">Select agent tag</option>
-            {agentsQuery.data?.map((agent) => (
-              <option key={agent.id} value={agent.name}>
-                {agent.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+
       <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
         <label className="btn" style={{ width: 'fit-content' }}>
           <input
@@ -196,24 +150,12 @@ const UploadPanel = () => {
           />
           {audioFiles.length ? `Selected ${audioFiles.length} mp3` : 'Select .mp3 folder'}
         </label>
-        <label className="btn secondary" style={{ width: 'fit-content' }}>
-          <input
-            ref={txtInputRef}
-            type="file"
-            multiple
-            style={{ display: 'none' }}
-            accept=".txt"
-            onChange={handleTxtSelect}
-            disabled={uploading}
-          />
-          {textFiles.length ? `Selected ${textFiles.length} txt` : 'Select .txt folder'}
-        </label>
-        <button className="btn" onClick={handleUpload} disabled={uploading || (!audioFiles.length && !textFiles.length)}>
+        <button className="btn" onClick={handleUpload} disabled={uploading || !audioFiles.length}>
           {uploading ? `Uploading ${uploadCount} file${uploadCount !== 1 ? 's' : ''}...` : 'Upload selected'}
         </button>
-        {!uploading && (audioFiles.length || textFiles.length) ? (
+        {!uploading && audioFiles.length ? (
           <span style={{ color: 'var(--muted)' }}>
-            Ready: {audioFiles.length} mp3 + {textFiles.length} txt
+            Ready: {audioFiles.length} mp3
           </span>
         ) : null}
       </div>
@@ -265,12 +207,8 @@ const UploadPanel = () => {
             <h3>{summary.fullyMapped}</h3>
           </div>
           <div className="card">
-            <p className="panel-title">Audio only</p>
+            <p className="panel-title">Audio uploaded</p>
             <h3>{summary.audioOnly}</h3>
-          </div>
-          <div className="card">
-            <p className="panel-title">Text only</p>
-            <h3>{summary.textOnly}</h3>
           </div>
         </div>
       )}
@@ -298,8 +236,7 @@ const UploadPanel = () => {
             <thead>
               <tr>
                 <th>Date</th>
-                <th>.mp3 file</th>
-                <th>.txt file</th>
+                <th>File (.mp3)</th>
                 <th>Sold?</th>
                 <th>Status</th>
               </tr>
@@ -309,15 +246,9 @@ const UploadPanel = () => {
                 <tr key={file._id}>
                   <td>{new Date(file.uploadedAt).toLocaleString()}</td>
                   <td>
-                    {file.audioAvailable ? `${file.baseName}.mp3` : 'NA'}
+                    {file.baseName}
                     {file.audioAvailable ? (
-                      <span style={{ fontSize: '0.8rem', color: 'var(--muted)', display: 'block' }}>{formatBytes(file.audioSize || 0)}</span>
-                    ) : null}
-                  </td>
-                  <td>
-                    {file.textAvailable ? `${file.baseName}.txt` : 'NA'}
-                    {file.textAvailable ? (
-                      <span style={{ fontSize: '0.8rem', color: 'var(--muted)', display: 'block' }}>{formatBytes(file.textSize || 0)}</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--muted)', marginLeft: '0.5rem' }}>{formatBytes(file.audioSize || 0)}</span>
                     ) : null}
                   </td>
                   <td>

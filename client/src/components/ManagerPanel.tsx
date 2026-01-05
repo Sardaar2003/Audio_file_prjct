@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { addComment, deleteComment, fetchRecords, fetchTextContent, getFilePresignedUrl, fetchFilePairDetails, updateFlag, updateStatus } from '../api';
+import { addComment, deleteComment, fetchRecords, fetchTextContent, getFilePresignedUrl, fetchFilePairDetails, updateFlag, updateStatus, transcribeFile } from '../api';
 import type { PaginatedResponse } from '../api';
 import { RecordComment, FilePair } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -24,12 +24,15 @@ const ManagerPanel = () => {
   const [page, setPage] = useState(1);
   const [soldStatus, setSoldStatus] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [transcribingId, setTranscribingId] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   const [showComments, setShowComments] = useState(false);
   const [commentOnly, setCommentOnly] = useState(false);
+  const [showTranscriptText, setShowTranscriptText] = useState(false);
 
   useEffect(() => {
     setShowComments(false);
+    setShowTranscriptText(false);
     setComment('');
   }, [selectedId]);
 
@@ -88,6 +91,22 @@ const ManagerPanel = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fileDetails', selectedId] });
       queryClient.invalidateQueries({ queryKey: ['monitorRecords'] });
+    },
+  });
+
+  const transcribeMutation = useMutation({
+    mutationFn: (filePairId: string) => transcribeFile(filePairId),
+    onMutate: (filePairId) => setTranscribingId(filePairId),
+    onSettled: () => setTranscribingId(null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['monitorRecords'] });
+      queryClient.invalidateQueries({ queryKey: ['fileDetails', selectedId] });
+      alert('Transcription started/completed successfully.');
+    },
+    onError: (error: any) => {
+      console.error('Transcription failed:', error);
+      const msg = error.response?.data?.message || error.message || 'Failed to transcribe file.';
+      alert(`Transcription failed: ${msg}`);
     },
   });
 
@@ -161,9 +180,11 @@ const ManagerPanel = () => {
                 <th>File</th>
                 <th>Size</th>
                 <th>Flag</th>
+
+                <th>Transcript</th>
                 <th>Status</th>
                 <th>Comment</th>
-                <th>Uploaded</th>
+                <th>Date</th>
               </tr>
             </thead>
             <tbody>
@@ -226,6 +247,63 @@ const ManagerPanel = () => {
                     </select>
                   </td>
                   <td>
+                    {file.textAvailable ? (
+                      <button
+                        className="btn secondary"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                        onClick={() => {
+                          setSelectedId(file._id);
+                          setCommentOnly(false);
+                        }}
+                      >
+                        View
+                      </button>
+                    ) : file.audioAvailable ? (
+                      transcribingId === file._id ? (
+                        <div style={{ width: '100px', height: '24px', background: 'var(--bg-elevated)', borderRadius: '4px', overflow: 'hidden', position: 'relative', border: '1px solid var(--border)' }}>
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              height: '100%',
+                              backgroundColor: 'var(--accent)',
+                              width: '100%',
+                              transformOrigin: 'left',
+                              animation: 'progress-indeterminate 2s infinite linear',
+                            }}
+                          />
+                          <style>
+                            {`
+                                @keyframes progress-indeterminate {
+                                  0% { transform: translateX(-100%); }
+                                  100% { transform: translateX(100%); }
+                                }
+                              `}
+                          </style>
+                          <span style={{ position: 'absolute', width: '100%', textAlign: 'center', fontSize: '0.7rem', lineHeight: '24px', color: 'white', fontWeight: 'bold', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+                            Transcribing...
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          className="btn"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', backgroundColor: '#e0e7ff', color: '#3730a3', borderColor: '#c7d2fe' }}
+                          onClick={() => {
+                            if (confirm(`Transcribe audio for ${file.baseName}?`)) {
+                              transcribeMutation.mutate(file._id);
+                            }
+                          }}
+                          disabled={transcribeMutation.isPending}
+                        >
+                          Transcribe
+                        </button>
+                      )
+                    ) : (
+                      <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>No Audio</span>
+                    )}
+                  </td>
+                  <td>
                     <span className={`badge ${file.status === 'Completed' ? 'completed' : 'processing'}`}>
                       {file.status === 'Completed' ? 'Processed' : 'Processing'}
                     </span>
@@ -247,7 +325,7 @@ const ManagerPanel = () => {
               ))}
               {files.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)' }}>
                     {recordsQuery.isFetching ? 'Loading...' : 'No records found'}
                   </td>
                 </tr>
@@ -315,9 +393,20 @@ const ManagerPanel = () => {
 
                   <div>
                     <p className="panel-title">Transcript</p>
-                    <div className="text-viewer" style={{ maxHeight: '300px' }}>
-                      {textQuery.isLoading ? 'Loading text...' : textQuery.data?.textContent || 'No transcript available'}
-                    </div>
+                    {!showTranscriptText ? (
+                      <button className="btn secondary" onClick={() => setShowTranscriptText(true)} style={{ marginTop: '0.25rem' }}>
+                        Show Transcript
+                      </button>
+                    ) : (
+                      <>
+                        <button className="btn secondary" onClick={() => setShowTranscriptText(false)} style={{ marginBottom: '0.5rem' }}>
+                          Hide Transcript
+                        </button>
+                        <div className="text-viewer" style={{ maxHeight: '300px' }}>
+                          {textQuery.isLoading ? 'Loading text...' : textQuery.data?.textContent || 'No transcript available'}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </>
               )}
