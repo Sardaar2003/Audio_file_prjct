@@ -338,9 +338,12 @@ const AdminPanel = () => {
                           className="btn"
                           style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', backgroundColor: '#e0e7ff', color: '#3730a3', borderColor: '#c7d2fe' }}
                           onClick={() => {
-                            if (confirm(`Transcribe audio for ${file.baseName}?`)) {
-                              transcribeMutation.mutate(file._id);
-                            }
+                            // Temporary out of service
+                            alert('Transcript service is temporarily out of service.');
+                            // Original logic commented out:
+                            // if (confirm(`Transcribe audio for ${file.baseName}?`)) {
+                            //   transcribeMutation.mutate(file._id);
+                            // }
                           }}
                           disabled={transcribeMutation.isPending}
                         >
